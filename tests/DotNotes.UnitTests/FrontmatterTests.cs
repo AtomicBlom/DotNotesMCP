@@ -125,4 +125,43 @@ public sealed class FrontmatterTests
 		NoteFrontmatter.Parse("name: one").IsEnriched.ShouldBeFalse();
 		NoteFrontmatter.Parse("name: one\ndn-gist: a summary").IsEnriched.ShouldBeTrue();
 	}
+
+	/// <summary>
+	/// Topics live in Obsidian's own tags so the person gets a tag pane, a graph node and something
+	/// a Bases view can filter by. A key of our own would be invisible to all three.
+	/// </summary>
+	[Test]
+	public void A_machine_topic_is_a_nested_tag_and_the_authored_ones_are_untouched()
+	{
+		var merged = NoteFrontmatter.MergeTopics(["arm64"], ["msbuild", "sdk-resolution"]);
+
+		merged.ShouldBe(["arm64", "dn/msbuild", "dn/sdk-resolution"]);
+	}
+
+	/// <summary>
+	/// Two entries for one word is two nodes in the graph and two rows in the tag pane, for a
+	/// distinction the reader does not care about.
+	/// </summary>
+	[Test]
+	public void A_topic_the_author_already_tagged_is_not_added_again() =>
+		NoteFrontmatter.MergeTopics(["deploy"], ["deploy", "build"])
+			.ShouldBe(["deploy", "dn/build"]);
+
+	/// <summary>Re-indexing an unchanged note must rewrite nothing, so the merge is deterministic.</summary>
+	[Test]
+	public void Merging_the_same_topics_again_yields_the_same_tags()
+	{
+		var once = NoteFrontmatter.MergeTopics(["arm64"], ["msbuild"]);
+
+		NoteFrontmatter.MergeTopics(once, ["msbuild"]).ShouldBe(once);
+	}
+
+	/// <summary>
+	/// The author's tags are topics too. Treating them as a separate vocabulary would have the
+	/// indexer declaring a topic as new when the person had already used it.
+	/// </summary>
+	[Test]
+	public void Topics_are_every_tag_with_the_prefix_removed() =>
+		NoteFrontmatter.Parse("tags: [arm64, dn/msbuild]").Topics()
+			.ShouldBe(["arm64", "msbuild"]);
 }

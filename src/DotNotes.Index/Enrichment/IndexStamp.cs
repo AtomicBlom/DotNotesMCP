@@ -29,7 +29,7 @@ public readonly record struct IndexStamp(int Schema, string Prompt, string Sourc
 	/// The shape of an enrichment record. Bumped when a field is added, removed or reinterpreted,
 	/// which stales every note at once -- correct, and the reason the shape is worth settling early.
 	/// </summary>
-	public const int CurrentSchema = 1;
+	public const int CurrentSchema = 2;
 
 	/// <summary>As it appears in the note.</summary>
 	public override string ToString() => $"{Schema}/{Prompt}/{Source}";

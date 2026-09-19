@@ -125,39 +125,43 @@ public static class NoteFile
 
 		if (!block.Present) return Hash(content);
 
-		var kept = new StringBuilder();
-
-		foreach (var entry in TopLevelEntries(block.Yaml))
-		{
-			if (!entry.StartsWith(NoteFrontmatter.ServerPrefix, StringComparison.Ordinal))
-			{
-				kept.Append(entry).Append('\n');
-			}
-		}
-
-		return Hash(kept + "\n" + block.Body);
+		return Hash(FrontmatterSplice.Apply(content, Derived(NoteFrontmatter.Parse(block.Yaml))));
 	}
 
-	/// <summary>Each top-level entry of a YAML block, with the lines it owns, keyed by its first line.</summary>
-	private static IEnumerable<string> TopLevelEntries(string yaml)
+	/// <summary>
+	/// Everything the indexer wrote, expressed as the splice that removes it.
+	/// <para>
+	/// Whole keys where the indexer owns the key, and a rewritten <c>tags</c> where it owns only some
+	/// of the entries. That second case is the one that matters: topics live in Obsidian's own
+	/// <c>tags</c> so the person can see them, which means the indexer writes into a key whose other
+	/// entries are the author's -- and hashing those machine entries would stale every note the
+	/// instant it was enriched.
+	/// </para>
+	/// <para>
+	/// A <c>tags</c> holding nothing but machine topics is removed rather than left empty, so a note
+	/// whose author gave it no tags hashes the same before and after enrichment as one whose author
+	/// gave it some.
+	/// </para>
+	/// </summary>
+	private static Dictionary<string, string?> Derived(NoteFrontmatter matter)
 	{
-		var lines = yaml.Split('\n');
-		var current = new StringBuilder();
+		var removals = new Dictionary<string, string?>(StringComparer.Ordinal);
 
-		foreach (var raw in lines)
+		foreach (var key in matter.Keys)
 		{
-			var line = raw.TrimEnd('\r');
-			var continues = line.Length == 0 || char.IsWhiteSpace(line[0]);
-
-			if (!continues && current.Length > 0)
-			{
-				yield return current.ToString();
-				current.Clear();
-			}
-
-			current.Append(current.Length > 0 ? "\n" : string.Empty).Append(line);
+			if (key.StartsWith(NoteFrontmatter.ServerPrefix, StringComparison.Ordinal)) removals[key] = null;
 		}
 
-		if (current.Length > 0) yield return current.ToString();
+		if (!matter.Has("tags")) return removals;
+
+		var authored = matter.Sequence("tags")
+			.Where(tag => !tag.StartsWith(NoteFrontmatter.TopicPrefix, StringComparison.OrdinalIgnoreCase))
+			.ToArray();
+
+		removals["tags"] = authored.Length == 0
+			? null
+			: FrontmatterSplice.Entry("tags", authored, "\n");
+
+		return removals;
 	}
 }

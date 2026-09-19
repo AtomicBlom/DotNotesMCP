@@ -13,20 +13,15 @@ dn-gist: IDE0005 can name the wrong using directive; the compiler decides which 
 dn-asks:
   - Why did removing an unnecessary using break the build?
   - Can IDE0005 report the wrong using directive?
-  - Which using does IMcpServerBuilder need?
+  - Which namespace does IMcpServerBuilder live in?
 dn-topics:
   - analyzers
   - build
 dn-entities:
   - IDE0005
   - IMcpServerBuilder
-  - ToolErrorReporting.cs
-dn-aliases:
-  - unnecessary using directive
-dn-links:
-  - "[[deploy-keeps-binaries-out-of-the-notes-folder]]"
 dn-confidence: high
-dn-index: 1/afc07512/f56db1f0e782
+dn-index: 2/afc07512/ce2e20cf5a60
 ---
 `dotnet build` reported IDE0005 (unnecessary using) for `using Microsoft.Extensions.DependencyInjection;` in ToolErrorReporting.cs. Removing it broke the build: `IMcpServerBuilder` lives in that namespace.
 

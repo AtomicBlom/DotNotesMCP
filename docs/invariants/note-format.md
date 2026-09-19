@@ -5,8 +5,13 @@ Read before touching frontmatter keys, the splice, slugs, wikilinks or the index
 - **A write changes the keys it was given and returns every other byte unaltered.** The store is a
   vault a person edits, with their own properties, comments and ordering. Nothing round-trips
   through a serializer. See [the decision](../decisions/a-note-is-spliced-rather-than-rewritten.md).
-- **Every key this server writes is either one of the authored fields or `dn-` prefixed.** It never
-  writes a key it does not own, including Obsidian's reserved `aliases` and `tags`.
+- **Every key this server writes is either one of the authored fields, `dn-` prefixed, or `tags`.**
+  `tags` is the one key it shares with the person, and it owns only the entries inside it that begin
+  `dn/`. Everything else in that list comes back in the order it went in. It still never touches
+  `aliases`.
+- **A derived value in a shared key is excluded from the source hash.** `SourceHash` drops the
+  `dn-` keys *and* the `dn/` entries of `tags`, and drops `tags` entirely when nothing but machine
+  topics is left. Miss any of those and writing an enrichment stales the note it just enriched.
 - **A value that YAML would read as another type is quoted.** A description of `no` coming back as
   `false` is the kind of wrong nothing downstream notices.
 - **A fence that never closes is body, not metadata.** Reading it as an unterminated block takes a

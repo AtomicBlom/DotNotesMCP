@@ -9,6 +9,16 @@ tags:
   - portability
 created: 2026-09-19
 updated: 2026-09-19
+dn-gist: The ubuntu CI job has never been executed, so a red first run is a finding rather than a broken build.
+dn-asks:
+  - Has the Linux CI job ever run?
+  - Why might the ubuntu job fail first time?
+  - Is this tool Windows-only?
+dn-entities:
+  - PathCasing
+  - StoreLock
+dn-confidence: high
+dn-index: 2/afc07512/c8c9542265d8
 ---
 The three CI jobs were added from a Windows machine with no Linux available, so the ubuntu job is the one part of the build that has never been executed.
 

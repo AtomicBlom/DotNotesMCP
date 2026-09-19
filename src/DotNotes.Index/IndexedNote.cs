@@ -50,12 +50,22 @@ public sealed class IndexedNote
 		Fill(counts, lengths, NoteField.Asks, matter.Sequence("dn-asks"));
 		Fill(counts, lengths, NoteField.Gist, [note.Heading.Gist ?? note.Heading.Description]);
 		Fill(counts, lengths, NoteField.Topics,
-			[.. note.Heading.Tags, .. matter.Sequence("dn-topics"), .. matter.Sequence("dn-entities")]);
+			[.. note.Heading.Tags.Select(Unprefixed), .. matter.Sequence("dn-entities")]);
 		Fill(counts, lengths, NoteField.Headings, Headings(note.Body));
 		Fill(counts, lengths, NoteField.Body, [note.Body]);
 
 		return new IndexedNote(note.Heading, note.Body, counts, lengths) { Links = note.Links };
 	}
+
+	/// <summary>
+	/// A tag without the prefix that marks it as the indexer's. Stripped before it is indexed, so
+	/// <c>dn</c> does not become a term every enriched note carries -- which would match nothing
+	/// anybody searches for and dilute the weight of the ones that do.
+	/// </summary>
+	private static string Unprefixed(string tag) =>
+		tag.StartsWith(NoteFrontmatter.TopicPrefix, StringComparison.OrdinalIgnoreCase)
+			? tag[NoteFrontmatter.TopicPrefix.Length..]
+			: tag;
 
 	/// <summary>The markdown headings in a body, which are the structure its author chose.</summary>
 	private static IReadOnlyList<string> Headings(string body) =>

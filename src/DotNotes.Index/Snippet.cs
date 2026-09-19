@@ -16,6 +16,13 @@ public static class Snippet
 	public const int Length = 200;
 
 	/// <summary>
+	/// How far a cut will look for a word boundary before giving up and cutting mid-word. Thirty
+	/// characters is longer than any ordinary word and far shorter than the runs that have no
+	/// boundary at all.
+	/// </summary>
+	private const int Overrun = 30;
+
+	/// <summary>
 	/// The passage around the best cluster of query terms, or the note's opening where none matched.
 	/// <para>
 	/// Around the terms rather than from the start, because the sentence that explains the match is
@@ -72,12 +79,18 @@ public static class Snippet
 	{
 		var start = offset;
 
-		// Back up to a word boundary so a passage never opens mid-identifier, which reads as a typo.
-		while (start > 0 && !char.IsWhiteSpace(text[start - 1])) start--;
+		// Back up to a word boundary so a passage never opens mid-identifier, which reads as a typo
+		// -- but only so far. A note carrying a hash, a URL or a minified line has runs with no
+		// boundary in them at all, and an unbounded search walks to the start of the note and
+		// returns that run instead of the text that matched.
+		var floor = Math.Max(0, start - Overrun);
+
+		while (start > floor && !char.IsWhiteSpace(text[start - 1])) start--;
 
 		var end = Math.Min(text.Length, start + Length);
+		var ceiling = Math.Min(text.Length, end + Overrun);
 
-		while (end < text.Length && !char.IsWhiteSpace(text[end])) end++;
+		while (end < ceiling && !char.IsWhiteSpace(text[end])) end++;
 
 		var passage = text[start..end].Trim();
 		var opened = start > 0 ? "…" : string.Empty;
@@ -105,7 +118,14 @@ public static class Snippet
 				continue;
 			}
 
-			if (character is '#' or '`' or '>' or '*' or '_' && space) continue;
+			// Paired markers go wherever they are. Dropping one only where it follows a space takes
+			// the opening backtick of `dotnet build` and leaves the closing one, which reads as a
+			// typo in a result a model will quote back to somebody.
+			if (character is '`' or '*') continue;
+
+			// Block markers are only markers at the start of a line. An underscore is never dropped:
+			// it is part of snake_case_names, which are exactly the terms these notes are about.
+			if (character is '#' or '>' && space) continue;
 
 			builder.Append(character);
 			space = false;

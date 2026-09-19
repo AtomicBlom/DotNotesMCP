@@ -6,8 +6,19 @@ type: project
 repository: dotnotesmcp
 tags:
   - deploy
+  - dn/build
 created: 2026-09-19
 updated: 2026-09-19
+dn-gist: The install goes in a bin subfolder because the product folder also holds settings, locks and the notes.
+dn-asks:
+  - Why does the install live in a bin subfolder?
+  - Where does deploy.ps1 write?
+  - What else is in the DotNotes product folder?
+dn-entities:
+  - deploy.ps1
+  - LOCALAPPDATA
+dn-confidence: high
+dn-index: 2/afc07512/a93434b3307e
 ---
 The product folder under LOCALAPPDATA (BinaryVibrance/DotNotes) holds settings.json, locks/ and, by default, notes/ -- the user's actual data.
 

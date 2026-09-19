@@ -110,4 +110,56 @@ public sealed class NoteFileTests
 		NoteFile.SourceHash("---\nname: one\n---\nBody, revised.\n").ShouldNotBe(NoteFile.SourceHash(Before));
 		NoteFile.SourceHash("---\nname: two\n---\nBody.\n").ShouldNotBe(NoteFile.SourceHash(Before));
 	}
+
+	/// <summary>
+	/// Topics live in Obsidian's own tags so a person can see them in the tag pane and the graph,
+	/// which means the indexer writes entries into a key whose other entries are the author's.
+	/// Hashing the machine entries would stale every note the instant it was enriched.
+	/// </summary>
+	[Test]
+	public void A_machine_topic_in_tags_does_not_change_the_source_hash()
+	{
+		const string Before = "---\nname: one\ntags:\n  - arm64\n---\nBody.\n";
+
+		var after = FrontmatterSplice.Apply(Before, new Dictionary<string, string?>
+		{
+			["tags"] = FrontmatterSplice.Entry("tags", ["arm64", "dn/msbuild"], "\n"),
+			["dn-gist"] = "dn-gist: a summary",
+		});
+
+		after.ShouldContain("dn/msbuild");
+		NoteFile.SourceHash(after).ShouldBe(NoteFile.SourceHash(Before));
+	}
+
+	/// <summary>
+	/// And a note whose author gave it no tags hashes the same before and after, or the very first
+	/// enrichment of every such note would stale it.
+	/// </summary>
+	[Test]
+	public void A_tags_key_holding_only_machine_topics_does_not_change_it_either()
+	{
+		const string Before = "---\nname: one\n---\nBody.\n";
+
+		var after = FrontmatterSplice.Apply(Before, new Dictionary<string, string?>
+		{
+			["tags"] = FrontmatterSplice.Entry("tags", ["dn/msbuild"], "\n"),
+			["dn-gist"] = "dn-gist: a summary",
+		});
+
+		NoteFile.SourceHash(after).ShouldBe(NoteFile.SourceHash(Before));
+	}
+
+	/// <summary>A tag the author added is theirs, and is part of what the note says.</summary>
+	[Test]
+	public void An_authored_tag_does_change_it()
+	{
+		const string Before = "---\nname: one\ntags:\n  - arm64\n---\nBody.\n";
+
+		var after = FrontmatterSplice.Apply(Before, new Dictionary<string, string?>
+		{
+			["tags"] = FrontmatterSplice.Entry("tags", ["arm64", "msbuild"], "\n"),
+		});
+
+		NoteFile.SourceHash(after).ShouldNotBe(NoteFile.SourceHash(Before));
+	}
 }

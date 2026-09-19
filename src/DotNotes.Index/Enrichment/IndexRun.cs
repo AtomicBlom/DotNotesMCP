@@ -387,7 +387,7 @@ public sealed class IndexRun
 			var content = NoteFile.Read(note.Heading.Path);
 			if (content is null) continue;
 
-			foreach (var topic in NoteFrontmatter.Parse(FrontmatterBlock.Split(content).Yaml).Sequence("dn-topics"))
+			foreach (var topic in NoteFrontmatter.Parse(FrontmatterBlock.Split(content).Yaml).Topics())
 			{
 				counts[topic] = counts.GetValueOrDefault(topic) + 1;
 			}
@@ -428,7 +428,7 @@ public sealed class IndexRun
 				Name = pair.note.Heading.Name,
 				Gist = pair.matter.Scalar("dn-gist") ?? string.Empty,
 				Asks = pair.matter.Sequence("dn-asks"),
-				Topics = pair.matter.Sequence("dn-topics"),
+				Topics = pair.matter.Topics(),
 			})];
 	}
 
@@ -477,7 +477,7 @@ public sealed class IndexRun
 
 		var topics = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-		foreach (var topic in enriched.SelectMany(matter => matter.Sequence("dn-topics")))
+		foreach (var topic in enriched.SelectMany(matter => matter.Topics()))
 		{
 			topics[topic] = topics.GetValueOrDefault(topic) + 1;
 		}
@@ -499,7 +499,7 @@ public sealed class IndexRun
 			Window = enriched.Length,
 			MeanGistLength = Math.Round(enriched.Average(matter => (matter.Scalar("dn-gist") ?? string.Empty).Length), 1),
 			MeanAsks = Math.Round(enriched.Average(matter => matter.Sequence("dn-asks").Count), 2),
-			MeanTopics = Math.Round(enriched.Average(matter => matter.Sequence("dn-topics").Count), 2),
+			MeanTopics = Math.Round(enriched.Average(matter => matter.Topics().Count), 2),
 			SingleUseTopics = once,
 			Warnings = warnings,
 		};
@@ -510,7 +510,7 @@ public sealed class IndexRun
 	{
 		Gist = matter.Scalar("dn-gist") ?? string.Empty,
 		Asks = matter.Sequence("dn-asks"),
-		Topics = matter.Sequence("dn-topics"),
+		Topics = matter.Topics(),
 		Entities = matter.Sequence("dn-entities"),
 		Aliases = matter.Sequence("dn-aliases"),
 		Links = matter.Sequence("dn-links"),
@@ -526,12 +526,17 @@ public sealed class IndexRun
 	{
 		_ = storePath;
 
-		var lineEnding = FrontmatterBlock.Split(content).LineEnding;
+		var block = FrontmatterBlock.Split(content);
+		var matter = NoteFrontmatter.Parse(block.Yaml);
+		var lineEnding = block.LineEnding;
 		var entries = new Dictionary<string, string?>(StringComparer.Ordinal)
 		{
 			["dn-gist"] = FrontmatterSplice.Entry("dn-gist", enrichment.Gist),
 			["dn-asks"] = FrontmatterSplice.Entry("dn-asks", enrichment.Asks, lineEnding),
-			["dn-topics"] = FrontmatterSplice.Entry("dn-topics", enrichment.Topics, lineEnding),
+			["tags"] = FrontmatterSplice.Entry(
+				"tags",
+				NoteFrontmatter.MergeTopics(matter.Sequence("tags"), enrichment.Topics),
+				lineEnding),
 			["dn-entities"] = Optional("dn-entities", enrichment.Entities, lineEnding),
 			["dn-aliases"] = Optional("dn-aliases", enrichment.Aliases, lineEnding),
 			["dn-links"] = Optional("dn-links", [.. links.Select(link => $"[[{link}]]")], lineEnding),
@@ -618,7 +623,7 @@ public sealed class IndexRun
 
 	/// <summary>Every key this mode owns, and the only keys it writes.</summary>
 	private static readonly string[] Keys =
-		["dn-gist", "dn-asks", "dn-topics", "dn-entities", "dn-aliases", "dn-links", "dn-confidence", IndexStamp.Key];
+		["dn-gist", "dn-asks", "dn-entities", "dn-aliases", "dn-links", "dn-confidence", IndexStamp.Key];
 }
 
 /// <summary>Which notes a rebuild puts back in the queue.</summary>

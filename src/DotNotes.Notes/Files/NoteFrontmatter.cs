@@ -16,6 +16,67 @@ public sealed class NoteFrontmatter
 	/// <summary>The prefix on every key this server owns, and writes.</summary>
 	public const string ServerPrefix = "dn-";
 
+	/// <summary>
+	/// The prefix on a tag the indexing mode owns, inside Obsidian's own <c>tags</c>.
+	/// <para>
+	/// Topics live there rather than under a key of their own because a key of their own is invisible
+	/// to Obsidian: no tag pane, no node in the graph, nothing to filter a Bases view by. Since the
+	/// point of pointing the store at a vault is that the person gets something from it, a topic they
+	/// cannot see is a topic that does not exist for them.
+	/// </para>
+	/// <para>
+	/// Nested, so the tag pane groups every machine topic under one collapsible <c>dn</c> and the
+	/// person's own tags stay theirs. The prefix is also what makes the merge tractable: a write
+	/// replaces the prefixed entries and returns every other tag exactly as it was.
+	/// </para>
+	/// </summary>
+	public const string TopicPrefix = "dn/";
+
+	/// <summary>
+	/// Every topic this note is filed under, prefix removed.
+	/// <para>
+	/// The author's own tags count. They are the same kind of thing as a topic -- a word this note is
+	/// about -- and treating them as a separate vocabulary would mean the indexer declaring a topic
+	/// as new when the person had already used it.
+	/// </para>
+	/// </summary>
+	public IReadOnlyList<string> Topics() =>
+		[.. Sequence("tags").Select(Unprefixed).Distinct(StringComparer.OrdinalIgnoreCase)];
+
+	/// <summary>
+	/// A note's <c>tags</c> with the given topics in it, the author's own entries kept in the order
+	/// they were in, and nothing duplicated.
+	/// <para>
+	/// A topic the author already wrote as a plain tag is left alone rather than added again with a
+	/// prefix. Two entries for one word is two nodes in the graph and two rows in the tag pane, for a
+	/// distinction the reader does not care about -- and the prefix is there to mark what the indexer
+	/// added, not to claim what it merely agreed with.
+	/// </para>
+	/// <para>
+	/// Deterministic, so re-indexing an unchanged note rewrites nothing.
+	/// </para>
+	/// </summary>
+	public static IReadOnlyList<string> MergeTopics(
+		IReadOnlyList<string> tags,
+		IReadOnlyList<string> topics)
+	{
+		var authored = tags
+			.Where(tag => !tag.StartsWith(TopicPrefix, StringComparison.OrdinalIgnoreCase))
+			.ToArray();
+
+		var already = authored.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+		return
+		[
+			.. authored,
+			.. topics.Where(topic => !already.Contains(topic)).Select(topic => TopicPrefix + topic),
+		];
+	}
+
+	/// <summary>A tag without the prefix that marks it as the indexer's.</summary>
+	private static string Unprefixed(string tag) =>
+		tag.StartsWith(TopicPrefix, StringComparison.OrdinalIgnoreCase) ? tag[TopicPrefix.Length..] : tag;
+
 	private static readonly IDeserializer Reader = new DeserializerBuilder().Build();
 
 	private readonly Dictionary<string, object?> _values;

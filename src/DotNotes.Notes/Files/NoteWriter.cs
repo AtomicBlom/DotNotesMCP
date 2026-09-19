@@ -39,7 +39,11 @@ public static class NoteWriter
 			["type"] = FrontmatterSplice.Entry("type", draft.Type.ToString().ToLowerInvariant()),
 			["repository"] = FrontmatterSplice.Entry("repository", draft.Repository),
 			["machines"] = Optional("machines", draft.Machines, lineEnding),
-			["tags"] = Optional("tags", draft.Tags, lineEnding),
+
+			// The author's tags, plus whatever topics the indexer has already written. Without the
+			// merge, editing a note would silently strip its topics -- and nothing would report it,
+			// because a note with no topics looks exactly like one that has not been enriched.
+			["tags"] = Optional("tags", NoteFrontmatter.MergeTopics(draft.Tags, Topics(previous)), lineEnding),
 			["created"] = FrontmatterSplice.Entry("created", Format(created)),
 			["updated"] = FrontmatterSplice.Entry("updated", Format(draft.Today)),
 		};
@@ -80,6 +84,10 @@ public static class NoteWriter
 
 	/// <summary>Dates are written as dates, so Obsidian's properties pane offers a date picker.</summary>
 	private static string Format(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+	/// <summary>The topics the indexer has written, which an authored write must not take with it.</summary>
+	private static IReadOnlyList<string> Topics(FrontmatterBlock? previous) =>
+		previous is { Present: true } block ? NoteFrontmatter.Parse(block.Yaml).Topics() : [];
 
 	/// <summary>When the note first existed, kept across a rewrite rather than reset by one.</summary>
 	private static DateOnly? Created(FrontmatterBlock? previous)
