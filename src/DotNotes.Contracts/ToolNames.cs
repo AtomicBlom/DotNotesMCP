@@ -18,4 +18,11 @@ public static class ToolNames
 	public const string Delete = "note_delete";
 	public const string Move = "note_move";
 	public const string Check = "note_check";
+
+	/// <summary>The indexing loop. Served only by --mode index, and never beside the note tools.</summary>
+	public const string IndexNext = "note_index_next";
+	public const string IndexWrite = "note_index_write";
+	public const string IndexSkip = "note_index_skip";
+	public const string IndexStatus = "note_index_status";
+	public const string IndexRebuild = "note_index_rebuild";
 }

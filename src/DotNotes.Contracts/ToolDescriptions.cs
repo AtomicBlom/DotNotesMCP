@@ -123,4 +123,82 @@ public static class ToolDescriptions
 
 	public const string DirectoryArgument =
 		"Which directory to resolve. Defaults to where the session is working.";
+
+	// The indexing mode. Its surface is never served beside the note tools, so these are budgeted
+	// separately: an indexing session reads nothing else and has room to be told the shape properly.
+
+	public const string IndexNext =
+		"Claims the next note needing enrichment and returns everything needed to enrich it: the "
+			+ "note, the topics already in use, accepted examples from this store, and the notes it "
+			+ "could link to. Everything to read is in the result -- going looking makes the output "
+			+ "depend on what you happened to find, and consistency across hundreds of notes is the "
+			+ "whole value. Answers drained when nothing is left, so the loop ends by itself.";
+
+	public const string IndexWrite =
+		"Submits one note's enrichment and releases the claim. Writes dn- keys into the note's own "
+			+ "frontmatter and touches nothing else, so the result is visible in Obsidian and "
+			+ "outlives the index. Refuses and says what to fix when the shape is wrong or a topic "
+			+ "was used without being declared -- a refusal is a correction, not an error.";
+
+	public const string IndexSkip =
+		"Gives a claim back. release puts the note back in the queue, not-worth-indexing answers it "
+			+ "permanently for this version of the note, and unreadable counts a failure toward the "
+			+ "retry limit.";
+
+	public const string IndexStatus =
+		"How much is left, what the vocabulary looks like, and who holds what. Ask for drift to see "
+			+ "how recent enrichments compare to the store's own norms.";
+
+	public const string IndexRebuild =
+		"Puts notes back in the queue. Discards nothing on disk until each is re-enriched, but it "
+			+ "does commit an agent to redoing them.";
+
+	public const string LeaseArgument = "The lease from note_index_next.";
+
+	public const string GistArgument =
+		"One sentence under 140 characters, naming the subject and what the note says about it. Not "
+			+ "\"This note...\" -- start with the subject. It is all a reader sees when deciding "
+			+ "whether to open it.";
+
+	public const string AsksArgument =
+		"Three to seven questions this note answers, in the words somebody who has not read it would "
+			+ "use. Search matches these directly, so they decide whether the note is findable at "
+			+ "all. Name the specific type, error or file in at least one.";
+
+	public const string TopicsArgument =
+		"Two to six topics, preferring ones already in the supplied vocabulary. A topic used once is "
+			+ "a topic nobody can filter by.";
+
+	public const string NewTopicsArgument =
+		"Any topic not already in the vocabulary. A topic used without being listed here is refused, "
+			+ "which is what keeps the vocabulary from growing by accident.";
+
+	public const string EntitiesArgument =
+		"Proper nouns a search would type verbatim: type names, products, people, error codes. "
+			+ "Copied exactly as the note spells them.";
+
+	public const string AliasesArgument =
+		"Other names for the subject, including an acronym or its expansion. Not the title again.";
+
+	public const string LinksArgument =
+		"Notes this one is genuinely about the same thing as, chosen only from the candidates "
+			+ "supplied. Zero is a normal answer; a link to everything vaguely related makes the "
+			+ "graph useless.";
+
+	public const string ConfidenceArgument =
+		"high, medium or low: about the note itself, not about your summary of it.";
+
+	public const string DispositionArgument =
+		"release, not-worth-indexing, or unreadable. No default -- the three differ in what they cost.";
+
+	public const string SkipReasonArgument = "Why, in a few words.";
+
+	public const string DriftArgument = "Also report how recent enrichments compare to the store's norms.";
+
+	public const string SelectionArgument =
+		"Which notes: stale, failed, skipped, or all. No default -- all commits to re-enriching the "
+			+ "whole store.";
+
+	public const string IndexScopeArgument =
+		"Which store this run covers: machine or repository.";
 }

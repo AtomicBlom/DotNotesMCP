@@ -1,6 +1,7 @@
 using System.Text.Json;
 
 using DotNotes.Contracts;
+using DotNotes.Server;
 
 namespace DotNotes.UnitTests;
 
@@ -45,6 +46,44 @@ public sealed class ToolSurfaceTests
 	public void The_server_offers_exactly_the_listed_tools() =>
 		Surface.Listed().Select(tool => tool.Name).OrderBy(name => name, StringComparer.Ordinal)
 			.ShouldBe(Expected.OrderBy(name => name, StringComparer.Ordinal));
+
+	/// <summary>
+	/// The two surfaces never overlap, and are never served together.
+	/// <para>
+	/// The indexing tools work, which is the whole problem. <c>note_index_next</c> in front of a
+	/// session doing something else is a several-hundred-iteration loop that rewrites files, and a
+	/// declared tool that can run but should not costs a burnt session rather than an error.
+	/// </para>
+	/// </summary>
+	[Test]
+	public void The_indexing_mode_serves_its_own_tools_and_only_those()
+	{
+		var indexing = Surface.IndexListed().Select(tool => tool.Name).ToArray();
+
+		indexing.OrderBy(name => name, StringComparer.Ordinal).ShouldBe(
+		[
+			ToolNames.IndexNext,
+			ToolNames.IndexRebuild,
+			ToolNames.IndexSkip,
+			ToolNames.IndexStatus,
+			ToolNames.IndexWrite,
+		]);
+
+		indexing.Intersect(Expected).ShouldBeEmpty();
+	}
+
+	/// <summary>Neither surface names a tool from the other in the text a client reads first.</summary>
+	[Test]
+	public void Neither_set_of_instructions_names_a_tool_the_session_cannot_see()
+	{
+		Surface.Instructions().ShouldNotContain("note_index_");
+
+		foreach (var tool in Expected)
+		{
+			IndexServiceCollectionExtensions.Instructions.ShouldNotContain(
+				tool, Case.Sensitive, $"index instructions name {tool}");
+		}
+	}
 
 	[Test]
 	public void Every_name_starts_with_the_server_prefix() =>

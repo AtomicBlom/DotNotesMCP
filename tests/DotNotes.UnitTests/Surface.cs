@@ -33,6 +33,22 @@ public static class Surface
 		return tools;
 	}
 
+	/// <summary>What an indexing session is offered, which is a different surface entirely.</summary>
+	public static Tool[] IndexListed()
+	{
+		var services = new ServiceCollection();
+
+		services.AddDotNotesIndexing(new NoteOptions(), DotNotes.Contracts.NoteScope.Machine);
+
+		using var provider = services.BuildServiceProvider();
+
+		var tools = provider.GetServices<McpServerTool>().Select(tool => tool.ProtocolTool).ToArray();
+
+		foreach (var tool in tools) ToolListing.Trim(tool);
+
+		return tools;
+	}
+
 	/// <summary>One tool by name, for a test that is about that tool.</summary>
 	public static Tool Named(string name) =>
 		Listed().Single(tool => tool.Name == name);

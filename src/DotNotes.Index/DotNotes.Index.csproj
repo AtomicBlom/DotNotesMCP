@@ -1,6 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!-- The tool attributes only. Nothing here starts a server: the host does that, and this
+         project is what it registers. -->
+    <PackageReference Include="ModelContextProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../DotNotes.Contracts/DotNotes.Contracts.csproj" />
     <ProjectReference Include="../DotNotes.Notes/DotNotes.Notes.csproj" />
   </ItemGroup>

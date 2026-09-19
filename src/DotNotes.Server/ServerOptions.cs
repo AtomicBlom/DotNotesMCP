@@ -1,3 +1,5 @@
+using DotNotes.Contracts;
+
 using DotNotes.Notes.Configuration;
 
 namespace DotNotes.Server;
@@ -24,14 +26,27 @@ public sealed record ServerOptions
 	/// </summary>
 	public string? Explain { get; init; }
 
+	/// <summary>
+	/// Which surface to serve. The two are never served together: the indexing tools work, and that
+	/// is the problem -- a several-hundred-iteration loop that rewrites files, in front of a session
+	/// doing something else, costs a burnt session rather than an error.
+	/// </summary>
+	public ServerMode Mode { get; init; } = ServerMode.Serve;
+
+	/// <summary>Which store an indexing run covers. Required, because a run that spans both rewrites both.</summary>
+	public NoteScope? Scope { get; init; }
+
 	/// <summary>The usage line, printed to stderr beside whatever was wrong with the arguments.</summary>
 	public const string Usage =
-		"usage: DotNotes.Server [--root <dir>] [--store <path>] [--explain <dir>]";
+		"usage: DotNotes.Server [--mode serve|index] [--scope machine|repository] [--root <dir>] "
+			+ "[--store <path>] [--explain <dir>]";
 
 	/// <exception cref="ArgumentException">An argument is unrecognised, or its value is missing.</exception>
 	public static ServerOptions Parse(string[] args)
 	{
 		var root = Environment.CurrentDirectory;
+		var mode = ServerMode.Serve;
+		NoteScope? scope = null;
 		string? store = null;
 		string? explain = null;
 
@@ -39,6 +54,22 @@ public sealed record ServerOptions
 		{
 			switch (args[i])
 			{
+				case "--mode":
+					if (i + 1 >= args.Length) throw new ArgumentException("--mode requires serve or index.");
+					mode = args[++i].Trim().ToLowerInvariant() switch
+					{
+						"serve" => ServerMode.Serve,
+						"index" => ServerMode.Index,
+						var given => throw new ArgumentException($"Unknown mode '{given}'. Use serve, index."),
+					};
+
+					break;
+
+				case "--scope":
+					if (i + 1 >= args.Length) throw new ArgumentException("--scope requires machine or repository.");
+					scope = ArgumentValues.WriteScope(args[++i]);
+					break;
+
 				case "--root":
 					if (i + 1 >= args.Length) throw new ArgumentException("--root requires a directory.");
 					root = args[++i];
@@ -59,7 +90,37 @@ public sealed record ServerOptions
 			}
 		}
 
-		return new ServerOptions { Root = root, Store = store, Explain = explain };
+		var options = new ServerOptions
+		{
+			Root = root,
+			Mode = mode,
+			Scope = scope,
+			Store = store,
+			Explain = explain,
+		};
+
+		options.Validate();
+
+		return options;
+	}
+
+	/// <summary>
+	/// Refuses an indexing run that has not said which store it covers.
+	/// <para>
+	/// Indexing rewrites frontmatter in every note it touches, and the two stores are a repository
+	/// working tree and, quite possibly, a whole Obsidian vault. A run that covered both because
+	/// nobody said otherwise is how somebody meaning to enrich a dozen committed notes rewrites nine
+	/// hundred personal ones.
+	/// </para>
+	/// </summary>
+	/// <exception cref="ArgumentException">An indexing run names no store.</exception>
+	private void Validate()
+	{
+		if (Mode != ServerMode.Index || Scope is not null) return;
+
+		throw new ArgumentException(
+			"Indexing writes into every note it enriches, so it will not span both stores. Name one: "
+				+ "--scope machine, or --scope repository.");
 	}
 
 	/// <summary>

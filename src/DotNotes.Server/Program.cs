@@ -46,7 +46,17 @@ internal static class Program
 		builder.Logging.ClearProviders();
 		builder.Logging.AddConsole(console => console.LogToStandardErrorThreshold = LogLevel.Trace);
 
-		builder.Services.AddDotNotes(options.Notes()).WithStdioServerTransport();
+		// One or the other, never both. The indexing tools work, which is exactly why a session that
+		// is not here to index must not be offered them.
+		if (options.Mode == ServerMode.Index)
+		{
+			builder.Services.AddDotNotesIndexing(options.Notes(), options.Scope!.Value)
+				.WithStdioServerTransport();
+		}
+		else
+		{
+			builder.Services.AddDotNotes(options.Notes()).WithStdioServerTransport();
+		}
 
 		await builder.Build().RunAsync();
 
