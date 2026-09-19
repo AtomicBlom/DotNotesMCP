@@ -1,4 +1,5 @@
 using DotNotes.Contracts;
+using DotNotes.Notes;
 using DotNotes.Notes.Configuration;
 using DotNotes.Notes.Files;
 using DotNotes.Notes.Stores;
@@ -31,6 +32,16 @@ public sealed class NoteService(NoteOptions options, INoteSearch search)
 
 		var hits = search.Search(stores, request);
 		var searched = search.Headings(stores, selection).Count;
+		var notices = Notices(stores, selection).ToList();
+
+		// An empty store and a store with nothing matching look identical in a result, and a caller
+		// who reads the first as the second concludes there is nothing to find and stops asking.
+		// Saying which, and what to do about it, is what keeps the next call from going to the files.
+		if (searched == 0 && stores.Machine.IsAvailable)
+		{
+			notices.Add(
+				$"No notes yet for {stores.Repository.Name}. note_write records the first.");
+		}
 
 		return Attribute(
 			new NoteSearchResult
@@ -39,7 +50,7 @@ public sealed class NoteService(NoteOptions options, INoteSearch search)
 				Searched = searched,
 				Truncated = hits.Count >= Math.Clamp(limit, 1, 50) && searched > hits.Count,
 				Backend = search.Backend,
-				Notices = Notices(stores, selection),
+				Notices = notices,
 			},
 			stores,
 			selection);
@@ -69,6 +80,106 @@ public sealed class NoteService(NoteOptions options, INoteSearch search)
 			},
 			stores,
 			selection);
+	}
+
+	/// <summary>
+	/// Writes a note, creating it or replacing one that is there.
+	/// <para>
+	/// Under the store's lock, because the same store is written by every session on this machine and
+	/// the index beside the note is regenerated in the same breath. The lock is an open handle
+	/// outside the store, so a session that dies holds nothing.
+	/// </para>
+	/// </summary>
+	/// <exception cref="McpRefusal">The store is unavailable, the note is too long, or it changed underneath.</exception>
+	public NoteWritten Write(
+		string name,
+		string description,
+		string body,
+		string scope,
+		string? type,
+		string[]? tags,
+		string[]? machines,
+		string? revision)
+	{
+		var target = ArgumentValues.WriteScope(scope);
+		var stores = Stores();
+		var store = stores[target];
+
+		if (store.Unavailable is { } because) throw new McpRefusal(because);
+
+		if (NoteWriter.TooLong(body, options.MaxBodyCharacters) is { } tooLong)
+		{
+			throw new McpRefusal(tooLong);
+		}
+
+		var slug = Slug.Of(name);
+		var path = Path.Combine(store.Ensure(), $"{slug}.md");
+
+		using var held = StoreLock.Take(store.Path, options.StoreLockTimeout, options.LocalAppData);
+
+		var existing = NoteFile.Read(path);
+
+		Guard(existing, revision, slug);
+
+		var draft = new NoteDraft
+		{
+			Name = slug,
+			Description = description,
+			Body = body,
+			Scope = target,
+			Repository = stores.Repository.Key,
+			Type = ArgumentValues.Type(type) ?? NoteType.Project,
+			Tags = tags ?? [],
+			Machines = machines ?? [],
+		};
+
+		var composed = NoteWriter.Compose(draft, existing);
+		var changed = NoteFile.Write(path, composed);
+
+		Regenerate(stores, target);
+
+		return Attribute(
+			new NoteWritten
+			{
+				Note = NoteReader.Parse(path, target, composed).Heading,
+				Created = existing is null,
+				Changed = changed,
+				Notices = Notices(stores, Selection(target)),
+			},
+			stores,
+			Selection(target));
+	}
+
+	/// <summary>Removes a note, and says what now links to nothing.</summary>
+	/// <exception cref="McpRefusal">The store is unavailable.</exception>
+	public NoteDeleted Delete(string name, string scope)
+	{
+		var target = ArgumentValues.WriteScope(scope);
+		var stores = Stores();
+		var store = stores[target];
+
+		if (store.Unavailable is { } because) throw new McpRefusal(because);
+
+		var slug = Slug.Of(name);
+		var path = Path.Combine(store.Path, $"{slug}.md");
+
+		using var held = StoreLock.Take(store.Path, options.StoreLockTimeout, options.LocalAppData);
+
+		var dangling = Backlinks(stores, slug, StoreSelection.Both).ToArray();
+		var existed = NoteFile.Delete(path);
+
+		if (existed) Regenerate(stores, target);
+
+		return Attribute(
+			new NoteDeleted
+			{
+				Name = slug,
+				Existed = existed,
+				LeftDangling = dangling,
+				Notices = Notices(stores, Selection(target)),
+			},
+			stores,
+			Selection(target));
 	}
 
 	/// <summary>Where this is, and where the notes are.</summary>
@@ -107,6 +218,62 @@ public sealed class NoteService(NoteOptions options, INoteSearch search)
 	private static T Attribute<T>(T result, NoteStores stores, StoreSelection scope)
 		where T : NoteResult =>
 		result with { Repository = stores.Repository.Key, Scope = Describe(scope) };
+
+	/// <summary>The selection that names exactly one store.</summary>
+	private static StoreSelection Selection(NoteScope scope) =>
+		scope == NoteScope.Repository ? StoreSelection.Repository : StoreSelection.Machine;
+
+	/// <summary>
+	/// Refuses a write over a note that has changed since the caller read it.
+	/// <para>
+	/// These are files a person edits in Obsidian while a session is running, so an unconditional
+	/// write is a way to lose an edit somebody made thirty seconds ago and never find out. Creating a
+	/// note needs no revision -- there is nothing to lose -- and replacing one does.
+	/// </para>
+	/// </summary>
+	private static void Guard(string? existing, string? revision, string name)
+	{
+		if (existing is null) return;
+
+		var current = NoteFile.Revision(existing);
+
+		if (revision is null or "")
+		{
+			throw new McpRefusal(
+				$"'{name}' already exists. Read it first and pass its revision ({current}) to replace "
+					+ "it, or write under a different name.");
+		}
+
+		if (!revision.Equals(current, StringComparison.OrdinalIgnoreCase))
+		{
+			throw new McpRefusal(
+				$"'{name}' has changed since revision {revision} -- it is now {current}. Read it again "
+					+ "before replacing it; the user edits these files directly.");
+		}
+	}
+
+	/// <summary>
+	/// Rewrites the index beside a store's notes. Under the same lock as the write that prompted it,
+	/// so two sessions cannot interleave a note and an index that disagree.
+	/// </summary>
+	private void Regenerate(NoteStores stores, NoteScope scope)
+	{
+		var store = stores[scope];
+		if (!store.IsAvailable) return;
+
+		var selection = Selection(scope);
+		var headings = search.Headings(stores, selection);
+		var other = scope == NoteScope.Machine && stores.Repo.IsAvailable
+			? search.Headings(stores, StoreSelection.Repository)
+			: null;
+
+		var path = Path.Combine(store.Path, NoteIndexFile.FileName);
+		var lineEnding = NoteFile.Read(path) is { } current
+			? FrontmatterBlock.Split(current).LineEnding
+			: "\n";
+
+		NoteFile.Write(path, NoteIndexFile.Render(stores.Repository.Name, headings, lineEnding, other));
+	}
 
 	private static string Describe(StoreSelection scope) => scope switch
 	{

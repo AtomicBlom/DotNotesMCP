@@ -36,6 +36,7 @@ public static class ServiceCollectionExtensions
 		- note_search before reconstructing a decision from files, or asking what may already be
 		  answered. No query lists everything.
 		- note_read one whole, with the notes that link to it.
+		- note_write to record one; note_delete to retire one that has gone wrong.
 		- note_context when an answer looks wrong: which repository resolved, and where the stores are.
 
 		A note is what was learned last time; the code only shows what was done. Worth writing down:

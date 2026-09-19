@@ -14,8 +14,18 @@ namespace DotNotes.UnitTests;
 /// </summary>
 public sealed class ToolSurfaceTests
 {
-	/// <summary>The read surface, in full.</summary>
+	/// <summary>The surface, in full.</summary>
 	private static readonly string[] Expected =
+	[
+		ToolNames.Context,
+		ToolNames.Delete,
+		ToolNames.Read,
+		ToolNames.Search,
+		ToolNames.Write,
+	];
+
+	/// <summary>The ones that promise to change nothing.</summary>
+	private static readonly string[] Reading =
 	[
 		ToolNames.Context,
 		ToolNames.Read,
@@ -39,7 +49,17 @@ public sealed class ToolSurfaceTests
 	public void Only_the_reading_tools_call_themselves_read_only() =>
 		Surface.Listed().Where(tool => tool.Annotations?.ReadOnlyHint == true).Select(tool => tool.Name)
 			.OrderBy(name => name, StringComparer.Ordinal)
-			.ShouldBe(Expected.OrderBy(name => name, StringComparer.Ordinal));
+			.ShouldBe(Reading.OrderBy(name => name, StringComparer.Ordinal));
+
+	/// <summary>
+	/// Only deleting is destructive. A write is addressed by name and what it replaced is in git or
+	/// in the vault's history, so marking it destructive would put a confirmation in front of the
+	/// commonest operation and teach the user to click through the one that matters.
+	/// </summary>
+	[Test]
+	public void Only_deleting_calls_itself_destructive() =>
+		Surface.Listed().Where(tool => tool.Annotations?.DestructiveHint == true).Select(tool => tool.Name)
+			.ShouldBe([ToolNames.Delete]);
 
 	/// <summary>
 	/// The output schema is a third of what a listing costs, and carries no prose at all -- a model

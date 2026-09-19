@@ -42,6 +42,47 @@ public sealed class NoteTools(NoteService notes)
 		[Description(ToolDescriptions.ScopeArgument)] string? scope = null) =>
 		notes.Read(name, scope);
 
+	/// <summary>
+	/// Not destructive, deliberately, where <c>note_delete</c> is. A write is addressed by name and
+	/// carries the whole note, and what it replaced is in git for a committed note and in the vault's
+	/// own history otherwise. Marking the commonest operation destructive puts a confirmation in
+	/// front of it and teaches the user to click through -- which spends the consent the hint exists
+	/// to collect, on the one operation that does not need it.
+	/// </summary>
+	[McpServerTool(
+		Name = ToolNames.Write,
+		Title = "Write a note",
+		ReadOnly = false,
+		Destructive = false,
+		Idempotent = true,
+		OpenWorld = false,
+		UseStructuredContent = true)]
+	[Description(ToolDescriptions.Write)]
+	public NoteWritten Write(
+		[Description(ToolDescriptions.NoteNameArgument)] string name,
+		[Description(ToolDescriptions.DescriptionArgument)] string description,
+		[Description(ToolDescriptions.BodyArgument)] string body,
+		[Description(ToolDescriptions.WriteScopeArgument)] string scope,
+		[Description(ToolDescriptions.NoteTypeArgument)] string? type = null,
+		[Description(ToolDescriptions.NoteTagsArgument)] string[]? tags = null,
+		[Description(ToolDescriptions.MachinesArgument)] string[]? machines = null,
+		[Description(ToolDescriptions.RevisionArgument)] string? revision = null) =>
+		notes.Write(name, description, body, scope, type, tags, machines, revision);
+
+	[McpServerTool(
+		Name = ToolNames.Delete,
+		Title = "Delete a note",
+		ReadOnly = false,
+		Destructive = true,
+		Idempotent = true,
+		OpenWorld = false,
+		UseStructuredContent = true)]
+	[Description(ToolDescriptions.Delete)]
+	public NoteDeleted Delete(
+		[Description(ToolDescriptions.NameArgument)] string name,
+		[Description(ToolDescriptions.WriteScopeArgument)] string scope) =>
+		notes.Delete(name, scope);
+
 	[McpServerTool(
 		Name = ToolNames.Context,
 		Title = "Which repository, and where the stores are",

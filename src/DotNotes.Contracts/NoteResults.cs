@@ -129,3 +129,37 @@ public sealed record NoteStoreState
 	/// <summary>Why it cannot be used, in a sentence naming the fix. Null when it can.</summary>
 	public string? Unavailable { get; init; }
 }
+
+/// <summary>A note written, and what that changed.</summary>
+public sealed record NoteWritten : NoteResult
+{
+	public required NoteHeading Note { get; init; }
+
+	/// <summary>Whether this made a note that was not there.</summary>
+	public required bool Created { get; init; }
+
+	/// <summary>
+	/// False where the note already said exactly this, so nothing was written. On a synced store a
+	/// no-op write is a replication and a stored revision, so not writing is worth reporting.
+	/// </summary>
+	public required bool Changed { get; init; }
+
+	public IReadOnlyList<string> Notices { get; init; } = [];
+}
+
+/// <summary>A note removed, and what now points at nothing.</summary>
+public sealed record NoteDeleted : NoteResult
+{
+	public required string Name { get; init; }
+
+	/// <summary>Whether there was a note of that name to remove.</summary>
+	public required bool Existed { get; init; }
+
+	/// <summary>
+	/// Notes whose links now go nowhere. Reported rather than left to be found, because a retraction
+	/// that silently breaks the notes referencing it is how a store rots.
+	/// </summary>
+	public required IReadOnlyList<NoteHeading> LeftDangling { get; init; }
+
+	public IReadOnlyList<string> Notices { get; init; } = [];
+}
