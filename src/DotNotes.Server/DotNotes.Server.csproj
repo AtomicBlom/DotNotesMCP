@@ -5,6 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../DotNotes.Contracts/DotNotes.Contracts.csproj" />
     <ProjectReference Include="../DotNotes.Notes/DotNotes.Notes.csproj" />
     <ProjectReference Include="../DotNotes.Index/DotNotes.Index.csproj" />

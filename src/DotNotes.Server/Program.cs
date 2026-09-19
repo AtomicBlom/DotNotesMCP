@@ -1,6 +1,10 @@
 using DotNotes.Notes.Configuration;
 using DotNotes.Notes.Stores;
 
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
 namespace DotNotes.Server;
 
 /// <summary>The console host. One binary, and the mode is chosen by argument.</summary>
@@ -24,14 +28,36 @@ internal static class Program
 
 		if (options.Explain is { Length: > 0 } directory) return Explain(directory, options);
 
+		return await ServeAsync(options);
+	}
+
+	/// <summary>
+	/// Serves the note tools over stdio.
+	/// <para>
+	/// Logging goes to stderr and nowhere else. stdout carries protocol frames, and a single stray
+	/// write into it corrupts the stream in a way that presents as a protocol bug rather than as a
+	/// print statement.
+	/// </para>
+	/// </summary>
+	private static async Task<int> ServeAsync(ServerOptions options)
+	{
+		var builder = Host.CreateApplicationBuilder();
+
+		builder.Logging.ClearProviders();
+		builder.Logging.AddConsole(console => console.LogToStandardErrorThreshold = LogLevel.Trace);
+
+		builder.Services.AddDotNotes(options.Notes()).WithStdioServerTransport();
+
+		await builder.Build().RunAsync();
+
 		return 0;
 	}
 
 	/// <summary>
 	/// Prints what a directory resolves to, then exits.
 	/// <para>
-	/// Writing to stdout is correct here and forbidden everywhere else in this host: this is a
-	/// command a person runs, not a transport carrying protocol frames.
+	/// Writing to stdout is correct here and forbidden in the served mode: this is a command a
+	/// person runs, not a transport carrying protocol frames.
 	/// </para>
 	/// </summary>
 	private static int Explain(string directory, ServerOptions options)
@@ -69,10 +95,7 @@ internal static class Program
 		return 0;
 	}
 
-	/// <summary>
-	/// A store as one line: where it is, or why it cannot be used. An unavailable store prints the
-	/// reason rather than a blank, because the reason names the fix.
-	/// </summary>
+	/// <summary>A store as one line: where it is, or why it cannot be used.</summary>
 	private static string Describe(NoteStore store) =>
 		store.Unavailable is { } because ? because : store.Path;
 }
