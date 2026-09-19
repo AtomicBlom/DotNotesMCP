@@ -1,0 +1,30 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- IDE0005 (unused usings) only runs at build when the doc file is generated. We want that
+         check, not the XML output, so CS1591 stays off. See dotnet/roslyn#41640. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- The version comes from the git tag, so a build carries the release it belongs to rather
+         than a number someone remembered to bump. Tags are v-prefixed. A build from an archive
+         with no .git falls back to 0.0.0-alpha.0, which is honest about not knowing. -->
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

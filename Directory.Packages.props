@@ -1,0 +1,38 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="MCP">
+    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Hosting">
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup Label="Notes">
+    <!-- Reads the frontmatter block, and only reads it. Nothing round-trips through a serializer:
+         that would reformat the quoting a person chose and drop their comments, in a file they
+         edit by hand in Obsidian. The server's own keys are spliced as text. -->
+    <PackageVersion Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Versioning">
+    <PackageVersion Include="MinVer" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Testing">
+    <PackageVersion Include="TUnit.Core" Version="1.66.27" />
+    <PackageVersion Include="TUnit.Engine" Version="1.66.27" />
+
+    <!-- Shouldly rather than an assertion library that declares its own Assert. TUnit.Core reaches
+         an Assert of its own, and two of those in scope is an ambiguity in every file; extension
+         methods collide with nothing and need no alias. -->
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
+  </ItemGroup>
+
+</Project>

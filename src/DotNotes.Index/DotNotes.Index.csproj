@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../DotNotes.Contracts/DotNotes.Contracts.csproj" />
+    <ProjectReference Include="../DotNotes.Notes/DotNotes.Notes.csproj" />
+  </ItemGroup>
+
+</Project>

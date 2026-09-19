@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DotNotes.Contracts/DotNotes.Contracts.csproj" />
+    <ProjectReference Include="../DotNotes.Notes/DotNotes.Notes.csproj" />
+    <ProjectReference Include="../DotNotes.Index/DotNotes.Index.csproj" />
+  </ItemGroup>
+
+</Project>

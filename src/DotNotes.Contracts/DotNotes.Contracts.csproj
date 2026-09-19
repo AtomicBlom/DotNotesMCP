@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- No package references, deliberately. This is the assembly everything else can reference:
+       the hosts, the index, and every test. A type here that needed a package would put that
+       package in front of all of them, so anything reading disk or holding state belongs in a
+       project that does. -->
+
+</Project>

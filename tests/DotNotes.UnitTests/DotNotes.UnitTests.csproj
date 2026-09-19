@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit.Core" />
+    <PackageReference Include="TUnit.Engine" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/DotNotes.Server/DotNotes.Server.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="TUnit.Core" />
+    <Using Include="Shouldly" />
+  </ItemGroup>
+
+</Project>

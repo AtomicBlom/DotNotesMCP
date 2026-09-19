@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DotNotes.Contracts/DotNotes.Contracts.csproj" />
+    <Project Path="src/DotNotes.Notes/DotNotes.Notes.csproj" />
+    <Project Path="src/DotNotes.Index/DotNotes.Index.csproj" />
+    <Project Path="src/DotNotes.Server/DotNotes.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DotNotes.UnitTests/DotNotes.UnitTests.csproj" />
+  </Folder>
+</Solution>
