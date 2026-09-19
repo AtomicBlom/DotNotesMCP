@@ -1,0 +1,88 @@
+# What has to be true of every commit.
+#
+# Three jobs rather than one, because they answer different questions and a single red tick would
+# not say which. Build-and-test says the code works; format says it matches what .editorconfig
+# declares, which is a build error locally and so must not be allowed to arrive through a branch
+# that never ran it; linux says nothing here quietly assumes Windows.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to a branch makes the first run's answer irrelevant. Not on main, where every
+# commit's result is the record of whether that commit was good.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # MinVer reads the tag history to stamp a version, and a shallow clone has none.
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - run: dotnet restore DotNotes.slnx
+
+      - run: dotnet build DotNotes.slnx --no-restore --configuration Release
+
+      # The test project is an executable, which is faster than `dotnet test` and does not need the
+      # Microsoft.Testing.Platform bridge. Never --nologo here: it is a VSTest option, MTP reports
+      # an unrecognised one as "Zero tests ran" with exit 5, and that reads exactly like a discovery
+      # failure.
+      - name: Test
+        run: ./tests/DotNotes.UnitTests/bin/Release/net10.0/DotNotes.UnitTests.exe --no-banner
+
+  format:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Its own job because it fails for a different reason than a test does, and because a
+      # formatting complaint buried under a test log is one nobody reads.
+      - run: dotnet format DotNotes.slnx --verify-no-changes
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Nothing here is Windows-only, and this is what keeps it that way. The cases most likely to
+      # break are the ones that know about case-insensitive paths and exclusive file handles, and
+      # both are deliberately asked of the platform rather than assumed -- so if this goes red, the
+      # answer is in PathCasing or StoreLock rather than in the test that reported it.
+      - run: dotnet test --configuration Release

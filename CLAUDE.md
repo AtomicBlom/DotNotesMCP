@@ -63,10 +63,29 @@ These are the ones you can break without going anywhere near the subsystem that 
 - **An error says what went wrong, not that something did.** Convert at the MCP boundary, never at
   the throw site: the exception type carries meaning further in, and retry decisions turn on it.
 
+## Invariants
+
+Each rule in these is a way of getting a confidently wrong answer rather than a failure -- a store
+that resolves to the wrong key reports no notes, which reads exactly like a repository nobody has
+written notes for. Find the row covering what you are about to touch and read that file first.
+
+| Read this | Before touching |
+|---|---|
+| [repository-identity.md](docs/invariants/repository-identity.md) | `RepositoryIdentity`, `GitLayout`, `RemoteName`, `PathCasing`, anything turning a path into a key |
+| [store-routing.md](docs/invariants/store-routing.md) | `NoteStores`, a scope, the machine-store path, configuration precedence |
+| [note-format.md](docs/invariants/note-format.md) | frontmatter keys, the splice, slugs, wikilinks, the index generator |
+| [writes-and-sync.md](docs/invariants/writes-and-sync.md) | any write path, the store lock, anything that runs during a write |
+| [result-shapes.md](docs/invariants/result-shapes.md) | a new tool, a new field on a result, an error path |
+| [index-freshness.md](docs/invariants/index-freshness.md) | a claim, a lease, the stamp a note carries, anything in `--mode index` |
+| [the-model-facing-text.md](docs/invariants/the-model-facing-text.md) | `ServerInstructions`, a tool description, an argument's help |
+
+A new invariant goes in the file whose trigger already covers it, or in a new file with a trigger of
+its own. The list of rules that bind everywhere grows only when a rule genuinely binds everywhere.
+
 ## Where things are written down
 
 - **Decisions** go in `docs/decisions/`, one file per decision, named for the decision rather than
-  numbered: what was chosen, and why the alternatives lost.
+  numbered: what was chosen, why the alternatives lost, and what would change the answer.
 - **Invariants** go in `docs/invariants/`: a rule a change could break, and the failure it prevents.
 
 ## Commands
