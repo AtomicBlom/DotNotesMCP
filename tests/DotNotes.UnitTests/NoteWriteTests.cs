@@ -35,6 +35,10 @@ public sealed class NoteWriteTests
 		{
 			DefaultRoot = checkout,
 			LocalAppData = GitFixture.Under(fixture.Root, "localappdata"),
+
+			// Nothing from the real environment: a variable set on this machine must not change
+			// what a test resolves.
+			Environment = _ => null,
 		};
 
 		var store = Path.Combine(

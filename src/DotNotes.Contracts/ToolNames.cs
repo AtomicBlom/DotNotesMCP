@@ -16,4 +16,6 @@ public static class ToolNames
 	public const string Context = "note_context";
 	public const string Write = "note_write";
 	public const string Delete = "note_delete";
+	public const string Move = "note_move";
+	public const string Check = "note_check";
 }

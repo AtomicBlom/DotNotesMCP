@@ -55,8 +55,29 @@ public static class ToolDescriptions
 		"Remove a note that is wrong or spent. It reports what now links to nothing, so a retraction "
 			+ "does not quietly leave the notes that referenced it pointing at a gap.";
 
+	/// <summary>
+	/// The promotion warning earns its place. Renaming is ordinary, but moving a note to repository
+	/// scope publishes it to everyone who clones, and the two arrive through the same tool -- so the
+	/// asymmetry has to be said where the choice is made rather than left to be discovered.
+	/// </summary>
+	public const string Move =
+		"Rename a note, or move it between stores, rewriting every link that pointed at it -- which "
+			+ "is why this beats deleting and writing it again. Moving to repository scope publishes "
+			+ "a private note to everyone who clones, and that cannot be undone by moving it back.";
+
+	public const string Check =
+		"Find what nothing else does: links that point at nothing, notes too long to finish, files a "
+			+ "sync service copied, two notes claiming one name, frontmatter that no longer parses. "
+			+ "Worth running after editing a store by hand.";
+
 	public const string ScopeArgument =
 		"Which store: machine, repository, or both. Defaults to both.";
+
+	public const string ToNameArgument = "A new name, or omit to keep the current one.";
+
+	public const string ToScopeArgument =
+		"A new store: machine or repository. Omit to keep the current one. Moving to repository "
+			+ "publishes the note to everyone who clones.";
 
 	/// <summary>
 	/// The one argument that earns its length. This is the decision with no undo, and it is read

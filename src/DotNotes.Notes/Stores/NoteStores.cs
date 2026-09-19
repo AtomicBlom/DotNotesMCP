@@ -51,7 +51,7 @@ public sealed record NoteStores
 			Repository = identity,
 			MachineRoot = root,
 			MachineRootSource = source,
-			MachineName = Configuration.MachineName.Of(settings),
+			MachineName = Configuration.MachineName.Of(settings, options),
 			Machine = MachineStore(identity, root, source),
 			Repo = RepositoryStore(identity),
 		};
@@ -74,7 +74,7 @@ public sealed record NoteStores
 			return (CanonicalPath.Of(argument), MachineStoreSource.Argument);
 		}
 
-		if (Environment.GetEnvironmentVariable(StoreVariable) is { Length: > 0 } environment)
+		if (options.Environment(StoreVariable) is { Length: > 0 } environment)
 		{
 			return (CanonicalPath.Of(environment), MachineStoreSource.Environment);
 		}

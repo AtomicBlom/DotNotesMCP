@@ -17,8 +17,10 @@ public sealed class ToolSurfaceTests
 	/// <summary>The surface, in full.</summary>
 	private static readonly string[] Expected =
 	[
+		ToolNames.Check,
 		ToolNames.Context,
 		ToolNames.Delete,
+		ToolNames.Move,
 		ToolNames.Read,
 		ToolNames.Search,
 		ToolNames.Write,
@@ -27,10 +29,17 @@ public sealed class ToolSurfaceTests
 	/// <summary>The ones that promise to change nothing.</summary>
 	private static readonly string[] Reading =
 	[
+		ToolNames.Check,
 		ToolNames.Context,
 		ToolNames.Read,
 		ToolNames.Search,
 	];
+
+	/// <summary>
+	/// The ones a client should confirm. Deleting leaves nothing behind; moving can publish a
+	/// private note to everyone who clones, and moving it back does not unsend it.
+	/// </summary>
+	private static readonly string[] Destructive = [ToolNames.Delete, ToolNames.Move];
 
 	[Test]
 	public void The_server_offers_exactly_the_listed_tools() =>
@@ -52,14 +61,16 @@ public sealed class ToolSurfaceTests
 			.ShouldBe(Reading.OrderBy(name => name, StringComparer.Ordinal));
 
 	/// <summary>
-	/// Only deleting is destructive. A write is addressed by name and what it replaced is in git or
-	/// in the vault's history, so marking it destructive would put a confirmation in front of the
-	/// commonest operation and teach the user to click through the one that matters.
+	/// Writing is not destructive and the other two are. A write is addressed by name and what it
+	/// replaced is in git or in the vault's history, so a confirmation in front of the commonest
+	/// operation would only teach the user to click through the ones that matter -- which are
+	/// deleting, which leaves nothing, and moving, which can publish a private note.
 	/// </summary>
 	[Test]
-	public void Only_deleting_calls_itself_destructive() =>
+	public void Only_the_operations_that_cannot_be_undone_call_themselves_destructive() =>
 		Surface.Listed().Where(tool => tool.Annotations?.DestructiveHint == true).Select(tool => tool.Name)
-			.ShouldBe([ToolNames.Delete]);
+			.OrderBy(name => name, StringComparer.Ordinal)
+			.ShouldBe(Destructive.OrderBy(name => name, StringComparer.Ordinal));
 
 	/// <summary>
 	/// The output schema is a third of what a listing costs, and carries no prose at all -- a model

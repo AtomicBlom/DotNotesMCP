@@ -21,6 +21,10 @@ public sealed class StoreRoutingTests
 	{
 		LocalAppData = GitFixture.Under(fixture.Root, "localappdata"),
 		MachineStore = machineStore,
+
+		// Nothing from the real environment, so a variable set on the machine running the suite
+		// cannot change what a test resolves.
+		Environment = _ => null,
 	};
 
 	[Test]
@@ -129,7 +133,6 @@ public sealed class StoreRoutingTests
 
 	/// <summary>The precedence, one layer at a time, narrowest intent first.</summary>
 	[Test]
-	[NotInParallel("environment")]
 	public void The_machine_store_comes_from_the_narrowest_layer_that_named_one()
 	{
 		using var fixture = GitFixture.Create();
@@ -145,23 +148,22 @@ public sealed class StoreRoutingTests
 
 		NoteStores.For(checkout, options).MachineRootSource.ShouldBe(MachineStoreSource.Settings);
 
-		using (EnvironmentVariable.Set(NoteStores.StoreVariable, fixture.Plain("fromEnvironment")))
-		{
-			NoteStores.For(checkout, options).MachineRootSource.ShouldBe(MachineStoreSource.Environment);
+		// Through the seam rather than a real variable: the process environment is shared by every
+		// test running beside this one, and setting it here redirected all of them into one store.
+		options.Environment = name =>
+			name == NoteStores.StoreVariable ? fixture.Plain("fromEnvironment") : null;
 
-			options.MachineStore = fixture.Plain("fromArgument");
-			NoteStores.For(checkout, options).MachineRootSource.ShouldBe(MachineStoreSource.Argument);
-		}
+		NoteStores.For(checkout, options).MachineRootSource.ShouldBe(MachineStoreSource.Environment);
+
+		options.MachineStore = fixture.Plain("fromArgument");
+		NoteStores.For(checkout, options).MachineRootSource.ShouldBe(MachineStoreSource.Argument);
 	}
 
 	[Test]
-	[NotInParallel("environment")]
 	public void With_nothing_configured_the_store_is_the_default_and_is_created_on_demand()
 	{
 		using var fixture = GitFixture.Create();
 		var checkout = fixture.Checkout("RoseMCP");
-
-		using var none = EnvironmentVariable.Set(NoteStores.StoreVariable, null);
 
 		var stores = NoteStores.For(checkout, Options(fixture));
 

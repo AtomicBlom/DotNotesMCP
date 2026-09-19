@@ -163,3 +163,50 @@ public sealed record NoteDeleted : NoteResult
 
 	public IReadOnlyList<string> Notices { get; init; } = [];
 }
+
+/// <summary>A note renamed or moved between stores, and the links that followed it.</summary>
+public sealed record NoteMoved : NoteResult
+{
+	public required NoteHeading Note { get; init; }
+
+	public required string FromName { get; init; }
+
+	public required string FromScope { get; init; }
+
+	/// <summary>
+	/// How many links now point at the new name. Reported because it is the part a caller cannot
+	/// see: a rename that left them behind looks identical to one that did not.
+	/// </summary>
+	public required int LinksRewritten { get; init; }
+
+	public IReadOnlyList<string> Notices { get; init; } = [];
+}
+
+/// <summary>What is wrong in a store.</summary>
+public sealed record NoteCheckReport : NoteResult
+{
+	public required IReadOnlyList<NoteProblem> Problems { get; init; }
+
+	/// <summary>How many notes were looked at, so a clean report is distinguishable from an empty store.</summary>
+	public required int Checked { get; init; }
+
+	public IReadOnlyList<string> Notices { get; init; } = [];
+}
+
+/// <summary>One thing wrong with one note.</summary>
+public sealed record NoteProblem
+{
+	/// <summary>
+	/// dangling-link, oversized, sync-conflict, duplicate-name, unreadable-frontmatter or misfiled.
+	/// A fixed set, so a caller can act on the kind rather than parsing the sentence.
+	/// </summary>
+	public required string Kind { get; init; }
+
+	/// <summary>The note it is about.</summary>
+	public required string Note { get; init; }
+
+	/// <summary>What is wrong, and what to do, in one sentence.</summary>
+	public required string Detail { get; init; }
+
+	public required string Path { get; init; }
+}

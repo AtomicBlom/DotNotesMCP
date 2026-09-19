@@ -83,6 +83,38 @@ public sealed class NoteTools(NoteService notes)
 		[Description(ToolDescriptions.WriteScopeArgument)] string scope) =>
 		notes.Delete(name, scope);
 
+	/// <summary>
+	/// Destructive, unlike a write, because one direction of it publishes. Moving a private note to
+	/// repository scope puts it in front of everyone who clones, and moving it back does not unsend
+	/// it -- so this is the operation where a confirmation is worth the interruption.
+	/// </summary>
+	[McpServerTool(
+		Name = ToolNames.Move,
+		Title = "Rename or move a note",
+		ReadOnly = false,
+		Destructive = true,
+		Idempotent = false,
+		OpenWorld = false,
+		UseStructuredContent = true)]
+	[Description(ToolDescriptions.Move)]
+	public NoteMoved Move(
+		[Description(ToolDescriptions.NameArgument)] string name,
+		[Description(ToolDescriptions.ToNameArgument)] string? toName = null,
+		[Description(ToolDescriptions.ToScopeArgument)] string? toScope = null) =>
+		notes.Move(name, toName, toScope);
+
+	[McpServerTool(
+		Name = ToolNames.Check,
+		Title = "Find what is wrong in the stores",
+		ReadOnly = true,
+		Idempotent = true,
+		OpenWorld = false,
+		UseStructuredContent = true)]
+	[Description(ToolDescriptions.Check)]
+	public NoteCheckReport Check(
+		[Description(ToolDescriptions.ScopeArgument)] string? scope = null) =>
+		notes.Check(scope);
+
 	[McpServerTool(
 		Name = ToolNames.Context,
 		Title = "Which repository, and where the stores are",

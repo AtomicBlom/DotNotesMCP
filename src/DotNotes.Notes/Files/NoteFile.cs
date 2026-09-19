@@ -48,9 +48,14 @@ public static class NoteFile
 
 		// Beside the target rather than in the system temp directory, so the move is a rename within
 		// one volume. Across volumes it is a copy, which is the partial write this exists to avoid.
+		//
+		// The name is unique per call, not per process. Two writes to one note are serialised by the
+		// store lock, but the lock lives outside the store and two callers that disagreed about where
+		// it lives would both proceed -- and a shared temporary name turns that into one write
+		// destroying the other's file mid-copy, rather than one of them simply winning.
 		var temporary = Path.Combine(
 			directory ?? ".",
-			$".{Path.GetFileName(path)}.{Environment.ProcessId:x}.tmp");
+			$".{Path.GetFileName(path)}.{Guid.NewGuid():n}.tmp");
 
 		try
 		{

@@ -8,7 +8,7 @@ public sealed class NoteOptions
 	/// by default, which for an MCP server an editor launched is the project it opened, and is what
 	/// lets every tool answer with no setup call first.
 	/// </summary>
-	public string DefaultRoot { get; set; } = Environment.CurrentDirectory;
+	public string DefaultRoot { get; set; } = System.Environment.CurrentDirectory;
 
 	/// <summary>
 	/// An explicit machine store, ahead of the environment and the settings file. Set from
@@ -21,6 +21,17 @@ public sealed class NoteOptions
 	/// and the default store are all somewhere disposable rather than in the real profile.
 	/// </summary>
 	public string? LocalAppData { get; set; }
+
+	/// <summary>
+	/// How an environment variable is read. Only a test replaces it.
+	/// <para>
+	/// A seam rather than a real variable, because the process environment is shared by everything
+	/// running in it. A test that set <c>DOTNOTES_STORE</c> to exercise precedence redirected every
+	/// other test running beside it into the same directory, where they collided over each other's
+	/// files -- a failure that moved around the suite from run to run and named the wrong tests.
+	/// </para>
+	/// </summary>
+	public Func<string, string?> Environment { get; set; } = System.Environment.GetEnvironmentVariable;
 
 	/// <summary>
 	/// The longest body a note may carry. A note is read whole or not at all, and one real memory in

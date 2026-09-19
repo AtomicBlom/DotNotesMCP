@@ -18,9 +18,9 @@ public static class MachineName
 	/// The chosen name, or the host's own. Slugged, because it is a value in frontmatter a person
 	/// reads and a term a search matches.
 	/// </summary>
-	public static string Of(MachineSettingsFile settings)
+	public static string Of(MachineSettingsFile settings, NoteOptions options)
 	{
-		if (Environment.GetEnvironmentVariable(Variable) is { Length: > 0 } fromEnvironment)
+		if (options.Environment(Variable) is { Length: > 0 } fromEnvironment)
 		{
 			return Slug.Of(fromEnvironment);
 		}
