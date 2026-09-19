@@ -1,5 +1,5 @@
 using DotNotes.Notes.Configuration;
-using DotNotes.Notes.Repositories;
+using DotNotes.Notes.Stores;
 
 namespace DotNotes.Server;
 
@@ -22,7 +22,7 @@ internal static class Program
 			return 2;
 		}
 
-		if (options.Explain is { Length: > 0 } directory) return Explain(directory);
+		if (options.Explain is { Length: > 0 } directory) return Explain(directory, options);
 
 		return 0;
 	}
@@ -34,13 +34,13 @@ internal static class Program
 	/// command a person runs, not a transport carrying protocol frames.
 	/// </para>
 	/// </summary>
-	private static int Explain(string directory)
+	private static int Explain(string directory, ServerOptions options)
 	{
-		RepositoryIdentity identity;
+		NoteStores stores;
 
 		try
 		{
-			identity = RepositoryIdentity.For(directory);
+			stores = NoteStores.For(directory, options.Notes());
 		}
 		catch (DotNotesConfigurationException exception)
 		{
@@ -49,17 +49,30 @@ internal static class Program
 			return 1;
 		}
 
-		Console.WriteLine($"origin      {identity.Origin}");
-		Console.WriteLine($"kind        {identity.Kind}");
-		Console.WriteLine($"worktree    {identity.Worktree ?? "-"}");
-		Console.WriteLine($"root        {identity.Root ?? "-"}");
-		Console.WriteLine($"common dir  {identity.CommonDirectory ?? "-"}");
-		Console.WriteLine($"remote      {identity.Remote ?? "-"}");
-		Console.WriteLine($"repository  {identity.Name}");
-		Console.WriteLine($"key         {identity.Key}");
-		Console.WriteLine($"named by    {identity.NamedBy}");
-		Console.WriteLine($"config      {identity.Config?.Path ?? "- (repository scope is off here)"}");
+		var identity = stores.Repository;
+
+		Console.WriteLine($"origin       {identity.Origin}");
+		Console.WriteLine($"kind         {identity.Kind}");
+		Console.WriteLine($"worktree     {identity.Worktree ?? "-"}");
+		Console.WriteLine($"root         {identity.Root ?? "-"}");
+		Console.WriteLine($"common dir   {identity.CommonDirectory ?? "-"}");
+		Console.WriteLine($"remote       {identity.Remote ?? "-"}");
+		Console.WriteLine($"repository   {identity.Name}");
+		Console.WriteLine($"key          {identity.Key}");
+		Console.WriteLine($"named by     {identity.NamedBy}");
+		Console.WriteLine();
+		Console.WriteLine($"machine name {stores.MachineName}");
+		Console.WriteLine($"store root   {stores.MachineRoot}  ({stores.MachineRootSource})");
+		Console.WriteLine($"  machine    {Describe(stores.Machine)}");
+		Console.WriteLine($"  repository {Describe(stores.Repo)}");
 
 		return 0;
 	}
+
+	/// <summary>
+	/// A store as one line: where it is, or why it cannot be used. An unavailable store prints the
+	/// reason rather than a blank, because the reason names the fix.
+	/// </summary>
+	private static string Describe(NoteStore store) =>
+		store.Unavailable is { } because ? because : store.Path;
 }
