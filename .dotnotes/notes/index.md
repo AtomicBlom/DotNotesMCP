@@ -6,4 +6,5 @@ dotnotes-generated: true
 # dotnotesmcp
 
 - [[deploy-keeps-binaries-out-of-the-notes-folder]] — The install is bin/ inside the product folder, because the folder itself holds settings, locks and the default note store
-- [[ide0005-can-disagree-with-the-compiler]] — IDE0005 reported a using as unnecessary that the build then required; trust the compiler
+- [[ide0005-can-disagree-with-the-compiler]] — IDE0005 can name the wrong using directive; the compiler decides which one is unused.
+- [[the-linux-ci-job-is-unverified-locally]] — The ubuntu CI job has never run; it exists to prove portability and may be red on its first run
