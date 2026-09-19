@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DotNotes.Notes.Repositories;
+namespace DotNotes.Notes;
 
 /// <summary>
 /// A name reduced to something that is a directory name on every platform, a wikilink target in

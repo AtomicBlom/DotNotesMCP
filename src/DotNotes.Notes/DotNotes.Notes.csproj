@@ -4,4 +4,8 @@
     <ProjectReference Include="../DotNotes.Contracts/DotNotes.Contracts.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+
 </Project>

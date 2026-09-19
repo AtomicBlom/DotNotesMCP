@@ -1,4 +1,4 @@
-using DotNotes.Notes.Repositories;
+using DotNotes.Notes;
 
 namespace DotNotes.UnitTests;
 

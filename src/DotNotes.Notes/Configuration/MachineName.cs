@@ -1,5 +1,3 @@
-using DotNotes.Notes.Repositories;
-
 namespace DotNotes.Notes.Configuration;
 
 /// <summary>
