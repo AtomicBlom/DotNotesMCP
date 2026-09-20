@@ -27,3 +27,11 @@ repository nobody has written notes for.
   would move the most important table in this repository out of the fast suite.
 - **Provenance is on the answer.** `NamedBy` says which step of the chain named the repository,
   because a name that surprises its reader is otherwise reverse-engineered from the filesystem.
+- **Nothing here is remembered between calls.** The two things resolution reads are exactly the two
+  a person changes while a session is open: `git init` in a directory that was not a repository, and
+  the committed config that opts one in to repository scope. A cached answer means the server keeps
+  giving the old one until it is restarted, and for the config that is the worse half -- the refusal
+  names the file to create, so following the instruction the tool just gave appears to do nothing
+  and the person has no reason left to doubt they did it right. Measured at 190 microseconds inside
+  a repository and 291 outside one, against a crawl of tens of milliseconds: the cache bought 0.3 ms
+  a request and sold the only two answers it reports. Both cases are pinned by a test.

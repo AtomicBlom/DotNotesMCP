@@ -1,7 +1,6 @@
 using DotNotes.Index;
 using DotNotes.Notes.Configuration;
 using DotNotes.Notes.Files;
-using DotNotes.Notes.Repositories;
 using DotNotes.Server;
 
 namespace DotNotes.UnitTests;
@@ -29,7 +28,6 @@ public sealed class NoteWriteTests
 
 		if (optIn) GitFixture.Write(checkout, ".dotnotes/dotnotes.json", """{ "repository": "rosemcp" }""");
 
-		RepositoryIdentity.Forget();
 
 		var options = new NoteOptions
 		{

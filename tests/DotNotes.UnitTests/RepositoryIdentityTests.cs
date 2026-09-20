@@ -197,7 +197,6 @@ public sealed class RepositoryIdentityTests
 		var checkout = fixture.Checkout("RoseMCP");
 
 		GitFixture.Write(checkout, ".dotnotes/dotnotes.json", """{ "repository": "Rose MCP" }""");
-		RepositoryIdentity.Forget();
 
 		var identity = RepositoryIdentity.For(checkout);
 
@@ -282,7 +281,6 @@ public sealed class RepositoryIdentityTests
 		var checkout = fixture.Checkout("RoseMCP");
 		var config = GitFixture.Write(checkout, ".dotnotes/dotnotes.json", "{ not json");
 
-		RepositoryIdentity.Forget();
 
 		var refusal = Should.Throw<DotNotesConfigurationException>(() => RepositoryIdentity.For(checkout));
 
@@ -300,5 +298,27 @@ public sealed class RepositoryIdentityTests
 		File.WriteAllText(Path.Combine(plain, ".gitignore"), "bin/\n");
 
 		RepositoryIdentity.For(plain).Kind.ShouldBe(RepositoryKind.NoRepository);
+	}
+
+	/// <summary>
+	/// Nothing here is remembered between calls, because a directory becoming a repository is one of
+	/// the two things a person does while a session is already open. Asking, running <c>git init</c>,
+	/// and asking again must give the new answer: a resolution cached on the first reply leaves the
+	/// server insisting there is no repository until it is restarted, with nothing to suggest why.
+	/// </summary>
+	[Test]
+	public void A_directory_that_becomes_a_repository_is_noticed()
+	{
+		using var fixture = GitFixture.Create();
+		var scratch = fixture.Plain("Scratch");
+
+		RepositoryIdentity.For(scratch).Kind.ShouldBe(RepositoryKind.NoRepository);
+
+		fixture.Checkout("Scratch");
+
+		var after = RepositoryIdentity.For(scratch);
+
+		after.Kind.ShouldBe(RepositoryKind.Checkout);
+		after.Name.ShouldBe("scratch");
 	}
 }

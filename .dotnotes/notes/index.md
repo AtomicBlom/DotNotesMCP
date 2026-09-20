@@ -7,4 +7,5 @@ dotnotes-generated: true
 
 - [[deploy-keeps-binaries-out-of-the-notes-folder]] — The install goes in a bin subfolder because the product folder also holds settings, locks and the notes.
 - [[ide0005-can-disagree-with-the-compiler]] — IDE0005 can name the wrong using directive; the compiler decides which one is unused.
+- [[nothing-about-the-filesystem-is-cached-between-calls]] — Repository identity is resolved fresh every call, because git init and the opt-in config both happen while a session is open
 - [[this-server-is-compiled-ahead-of-time]] — AOT analysers are on for every project but the tests, so reflection-based JSON or YAML fails the ordinary build

@@ -1,6 +1,5 @@
 using DotNotes.Contracts;
 using DotNotes.Notes.Configuration;
-using DotNotes.Notes.Repositories;
 using DotNotes.Notes.Stores;
 
 namespace DotNotes.UnitTests;
@@ -85,6 +84,25 @@ public sealed class StoreRoutingTests
 		stores.Machine.IsAvailable.ShouldBeTrue();
 	}
 
+	/// <summary>
+	/// The refusal names the file to create, so creating it has to be enough on its own. Holding the
+	/// resolved identity between calls made following the tool's own instruction appear to do
+	/// nothing -- which is worse than a refusal that explains nothing, because the person has no
+	/// reason left to doubt they did it right.
+	/// </summary>
+	[Test]
+	public void Committing_the_config_turns_repository_scope_on_without_a_restart()
+	{
+		using var fixture = GitFixture.Create();
+		var checkout = fixture.Checkout("RoseMCP");
+
+		NoteStores.For(checkout, Options(fixture)).Repo.IsAvailable.ShouldBeFalse();
+
+		GitFixture.Write(checkout, ".dotnotes/dotnotes.json", """{ "repository": "rosemcp" }""");
+
+		NoteStores.For(checkout, Options(fixture)).Repo.IsAvailable.ShouldBeTrue();
+	}
+
 	[Test]
 	public void Committing_the_config_turns_repository_scope_on()
 	{
@@ -92,7 +110,6 @@ public sealed class StoreRoutingTests
 		var checkout = fixture.Checkout("RoseMCP");
 
 		GitFixture.Write(checkout, ".dotnotes/dotnotes.json", """{ "repository": "rosemcp" }""");
-		RepositoryIdentity.Forget();
 
 		var stores = NoteStores.For(checkout, Options(fixture));
 
@@ -112,7 +129,6 @@ public sealed class StoreRoutingTests
 		var checkout = fixture.Checkout("RoseMCP");
 
 		GitFixture.Write(checkout, ".dotnotes/dotnotes.json", """{ "repository": "r", "notes": "../docs/notes" }""");
-		RepositoryIdentity.Forget();
 
 		var stores = NoteStores.For(checkout, Options(fixture));
 

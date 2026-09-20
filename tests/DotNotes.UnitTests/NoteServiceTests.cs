@@ -1,6 +1,5 @@
 using DotNotes.Index;
 using DotNotes.Notes.Configuration;
-using DotNotes.Notes.Repositories;
 using DotNotes.Server;
 
 namespace DotNotes.UnitTests;
@@ -35,7 +34,6 @@ public sealed class NoteServiceTests
 			Environment = _ => null,
 		};
 
-		RepositoryIdentity.Forget();
 
 		var store = GitFixture.Under(
 			MachineSettingsFile.DirectoryFor(options.LocalAppData), "notes", "rosemcp");

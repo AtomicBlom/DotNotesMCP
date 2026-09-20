@@ -3,7 +3,6 @@ using DotNotes.Index;
 using DotNotes.Index.Enrichment;
 using DotNotes.Notes.Configuration;
 using DotNotes.Notes.Files;
-using DotNotes.Notes.Repositories;
 using DotNotes.Notes.Stores;
 
 namespace DotNotes.UnitTests;
@@ -30,7 +29,6 @@ public sealed class IndexRunTests
 		var fixture = GitFixture.Create();
 		var checkout = fixture.Checkout("RoseMCP");
 
-		RepositoryIdentity.Forget();
 
 		var options = new NoteOptions
 		{

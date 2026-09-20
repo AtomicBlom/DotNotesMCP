@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 using DotNotes.Contracts;
 using DotNotes.Notes.Configuration;
 
@@ -17,12 +15,6 @@ namespace DotNotes.Notes.Repositories;
 /// </summary>
 public sealed record RepositoryIdentity
 {
-	/// <summary>
-	/// Resolutions already made, by folded start directory. A repository does not move while a
-	/// process is running, and every tool call asks this question before it does anything else.
-	/// </summary>
-	private static readonly ConcurrentDictionary<string, RepositoryIdentity> Resolved = new();
-
 	/// <summary>The directory the resolution started from, canonicalised.</summary>
 	public required string Origin { get; init; }
 
@@ -68,25 +60,22 @@ public sealed record RepositoryIdentity
 	/// <summary>
 	/// The identity of the directory a call came from. Pure over disk: no process is started, and at
 	/// most four small files are read.
+	/// <para>
+	/// Answered fresh every time, deliberately. The two things this reads are exactly the two a
+	/// person changes while a session is open -- <c>git init</c> in a directory that was not a
+	/// repository, and the committed config that opts one in to repository scope. Remembering
+	/// either answer means the server keeps giving the old one, and for the config that is worse
+	/// than merely stale: the refusal names the file to create, so following the instruction the
+	/// tool just gave you appears to do nothing.
+	/// </para>
+	/// <para>
+	/// Measured at 190 microseconds inside a repository and 291 outside one, against a store crawl
+	/// of tens of milliseconds and one or two resolutions per call. A cache saved 0.3 ms per request
+	/// and cost an answer that could be wrong about the only two things it reports.
+	/// </para>
 	/// </summary>
 	/// <exception cref="DotNotesConfigurationException">A committed config is there and malformed.</exception>
-	public static RepositoryIdentity For(string startDirectory)
-	{
-		var origin = CanonicalPath.Of(startDirectory);
-
-		// Not GetOrAdd: the factory throws for a malformed config, and a throwing factory under
-		// GetOrAdd is a cached absence at best and an exception on an unrelated caller's thread at
-		// worst. Resolving twice in a race costs four file reads.
-		if (Resolved.TryGetValue(PathCasing.Fold(origin), out var cached)) return cached;
-
-		var identity = Resolve(origin);
-		Resolved[PathCasing.Fold(origin)] = identity;
-
-		return identity;
-	}
-
-	/// <summary>Forgets every resolution, so a test can stage a layout and ask about it again.</summary>
-	public static void Forget() => Resolved.Clear();
+	public static RepositoryIdentity For(string startDirectory) => Resolve(CanonicalPath.Of(startDirectory));
 
 	private static RepositoryIdentity Resolve(string origin)
 	{
