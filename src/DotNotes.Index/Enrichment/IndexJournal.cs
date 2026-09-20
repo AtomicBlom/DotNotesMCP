@@ -23,24 +23,26 @@ namespace DotNotes.Index.Enrichment;
 /// </summary>
 public sealed record IndexJournal
 {
-	private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
-	{
-		WriteIndented = true,
-		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-	};
+	// Settable rather than init-only, and that is a serialization requirement rather than a style
+	// choice. The JSON source generator models an init-only member as a constructor parameter and
+	// assigns every one of them at once, so a key the file omits arrives as default -- turning each
+	// empty list below into null, which is a NullReferenceException in whichever run reads a
+	// journal written before one of these existed. A settable property gets a setter the
+	// deserializer calls only for keys that are present. Nothing mutates a journal after it is read;
+	// WithoutExpired returns a new one.
 
-	public IReadOnlyList<Lease> Leases { get; init; } = [];
+	public IReadOnlyList<Lease> Leases { get; set; } = [];
 
-	public IReadOnlyList<Attempt> Attempts { get; init; } = [];
+	public IReadOnlyList<Attempt> Attempts { get; set; } = [];
 
-	public IReadOnlyList<Skip> Skips { get; init; } = [];
+	public IReadOnlyList<Skip> Skips { get; set; } = [];
 
 	/// <summary>
 	/// Notes put back in the queue on purpose. Recorded here rather than by stripping each note's
 	/// enrichment, because rewriting several hundred files to mark them stale is a full sync for a
 	/// decision that may be reversed by the next run.
 	/// </summary>
-	public IReadOnlyList<string> Forced { get; init; } = [];
+	public IReadOnlyList<string> Forced { get; set; } = [];
 
 	/// <summary>The journal for a store, or an empty one.</summary>
 	public static IndexJournal Read(string storePath, string? localAppData)
@@ -51,7 +53,7 @@ public sealed record IndexJournal
 		{
 			if (!File.Exists(path)) return new IndexJournal();
 
-			return JsonSerializer.Deserialize<IndexJournal>(File.ReadAllText(path), Options)
+			return JsonSerializer.Deserialize(File.ReadAllText(path), IndexJournalJson.Default.IndexJournal)
 				?? new IndexJournal();
 		}
 		catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
@@ -69,7 +71,7 @@ public sealed record IndexJournal
 		var path = PathFor(storePath, localAppData);
 
 		Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-		File.WriteAllText(path, JsonSerializer.Serialize(this, Options));
+		File.WriteAllText(path, JsonSerializer.Serialize(this, IndexJournalJson.Default.IndexJournal));
 	}
 
 	/// <summary>Named for the store it covers, folded so two spellings of one store share it.</summary>
@@ -128,3 +130,11 @@ public sealed record IndexJournal
 		public required string Reason { get; init; }
 	}
 }
+
+/// <summary>The journal's shape, generated rather than discovered by reflection.</summary>
+[JsonSourceGenerationOptions(
+	JsonSerializerDefaults.Web,
+	WriteIndented = true,
+	DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(IndexJournal))]
+internal sealed partial class IndexJournalJson : JsonSerializerContext;

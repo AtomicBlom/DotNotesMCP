@@ -28,23 +28,40 @@ deletion rules is a second set of rules and only one of them gets fixed. What th
 like is not a build error but a version of the uninstaller that removes a store the other one
 spares.
 
-## Self-contained by default
+## Ahead-of-time by default
 
-**Decision.** `deploy.ps1 -Mode package` publishes self-contained. `-FrameworkDependent` builds the
-small one.
+**Decision.** `deploy.ps1 -Mode package` publishes Native AOT: one native image per architecture,
+no runtime to install. `-FrameworkDependent` builds the small managed one. The everyday
+`deploy.ps1` is unchanged and still framework-dependent, because AOT costs about forty seconds and
+the dogfooding loop runs several times a day.
 
-**Why.** An MCP server is started by an editor, with no console attached. A missing runtime
-therefore does not present as an error message -- it presents as a server that is simply never
-there. That is the one failure this product cannot afford, and it is already written down as a rule
-that binds everywhere: an agent that reaches for a tool and gets nothing goes back to reading files
-and does not come back. Trading 50 MB of download for removing that failure mode entirely is not a
-close call.
+**Why, and it is the same argument twice.** An MCP server is started by an editor with no console
+attached, so a missing runtime does not present as an error -- it presents as a server that is never
+there. And startup halves, 127 ms to 67 ms. Both land on the rule that binds everywhere: an agent
+that reaches for a tool and finds nothing, or finds it slow, goes back to reading files and does not
+come back. One removes an absent server, the other removes a slow one.
 
-The framework-dependent package still exists because it is a fiftieth of the size and a machine with
-the SDK on it -- which is every machine this is developed on -- loses nothing by using it.
-`Get-PrerequisiteProblem` reports a missing runtime only for that package, and reports rather than
-refuses: somebody installing onto a machine they are about to finish setting up is doing a
-reasonable thing.
+**What it cost, and what it bought.** Four reflecting JSON call sites became source-generated
+contexts, and the frontmatter reader stopped asking a deserializer to map YAML onto types --
+[YamlBlock](../../src/DotNotes.Notes/Files/YamlBlock.cs) walks the parser's events instead. That
+second one is not a concession: a note's frontmatter has no schema, so mapping it onto declared
+types never fitted, and the generated static deserializer that would satisfy the analyzer needs
+exactly the declared types there are none of.
+
+| | self-contained | ahead-of-time |
+|---|---|---|
+| payload per architecture | 81.6 MB, 236 files | **15.3 MB, one file** |
+| release zip | 72 MB | **10.7 MB** |
+| installer | 50.3 MB | **8.9 MB** |
+| cold start | 127 ms | **67 ms** |
+
+**Why it stays correct.** `IsAotCompatible` is on for every project but the tests, so the analyzers
+run at ordinary build rather than only at publish. Warnings are errors here, so a reflecting call
+added on a Tuesday fails at the keystroke that caused it instead of being found by whoever next cuts
+a release.
+
+**What changes the answer.** A dependency that cannot be made trim-safe. The MCP SDK is clean today,
+which was the one thing that could have settled this the other way.
 
 ## One installer, both architectures
 
@@ -61,12 +78,16 @@ this whole repository is organised against.
 time. Both, because packaging is where a staging mistake is still "the build is wrong" and install
 is the last point where it is still "the download is wrong".
 
+**Why cross-compiling is fine.** Native AOT cross-compiles between architectures on one OS -- the
+ILCompiler picks a host/target pair of MSVC tools, and `arm64_amd64` and `amd64_arm64` are paths it
+codes for explicitly. Only cross-*OS* is out. So one machine, and one CI runner, builds both. It
+does need **both** C++ toolsets installed, `VC.Tools.x86.x64` and `VC.Tools.ARM64`; with one
+missing the message is "Platform linker not found", which reads like a broken installation rather
+than a missing checkbox.
+
 **Why no deduplication.** RoseMCP's packaging hoists whatever both architectures built identically
 into a `shared` folder, and that pays there because most of its payload is architecture-neutral IL.
-It would not pay here: a self-contained publish is mostly the runtime, which is compiled ahead of
-time per architecture and so differs file by file. A step that can silently produce a half-tree, in
-exchange for very little, is a step not worth having.
-
-**What changes the answer.** A third architecture, or a payload that grows enough that the download
-size starts to matter. Then deduplication earns its complexity and can be added to packaging alone,
-because the installer already treats the payload as opaque.
+Here each architecture is a single native image with nothing in common to hoist, so the question
+does not arise. It did not pay before AOT either: a self-contained publish is mostly the runtime,
+compiled per architecture and so differing file by file -- 45 of 236 files were identical, 4.8 MB of
+81.6.

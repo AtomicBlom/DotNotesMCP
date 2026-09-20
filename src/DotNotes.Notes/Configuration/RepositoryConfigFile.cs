@@ -20,27 +20,28 @@ public sealed record RepositoryConfigFile
 	/// <summary>The config file's own name, inside <see cref="DirectoryName"/>.</summary>
 	public const string FileName = "dotnotes.json";
 
-	private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
-	{
-		ReadCommentHandling = JsonCommentHandling.Skip,
-		AllowTrailingCommas = true,
-	};
+	// Settable rather than init-only, and that is a serialization requirement rather than a style
+	// choice. The JSON source generator models an init-only member as a constructor parameter and
+	// builds the object by assigning every one of them at once, so a key the file omits arrives as
+	// default -- overwriting the initialiser below with null. A settable property gets a
+	// parameterless creator and a setter the deserializer calls only for keys that are present,
+	// which is what keeps a default a default. Nothing mutates one of these after it is read.
 
 	/// <summary>
 	/// What this repository is called, wherever it is cloned. Null leaves the name to the remote.
 	/// </summary>
-	public string? Repository { get; init; }
+	public string? Repository { get; set; }
 
 	/// <summary>
 	/// Where the notes are, relative to this file. Committed and not overridable by an argument or
 	/// an environment variable: a repository store at a path that differs per machine is not a
 	/// repository store, and two clones would quietly stop sharing one.
 	/// </summary>
-	public string Notes { get; init; } = "notes";
+	public string Notes { get; set; } = "notes";
 
 	/// <summary>The file this was read from. Absent means repository scope is not enabled here.</summary>
 	[JsonIgnore]
-	public string? Path { get; init; }
+	public string? Path { get; set; }
 
 	/// <summary>The path the file would have, whether or not it is there.</summary>
 	public static string PathFor(string repositoryRoot) =>
@@ -66,7 +67,7 @@ public sealed record RepositoryConfigFile
 
 		try
 		{
-			var parsed = JsonSerializer.Deserialize<RepositoryConfigFile>(File.ReadAllText(path), Options);
+			var parsed = JsonSerializer.Deserialize(File.ReadAllText(path), RepositoryConfigJson.Default.RepositoryConfigFile);
 
 			return (parsed ?? new RepositoryConfigFile()) with { Path = path };
 		}
@@ -76,3 +77,11 @@ public sealed record RepositoryConfigFile
 		}
 	}
 }
+
+/// <summary>The committed config file's shape, generated rather than discovered by reflection.</summary>
+[JsonSourceGenerationOptions(
+	JsonSerializerDefaults.Web,
+	ReadCommentHandling = JsonCommentHandling.Skip,
+	AllowTrailingCommas = true)]
+[JsonSerializable(typeof(RepositoryConfigFile))]
+internal sealed partial class RepositoryConfigJson : JsonSerializerContext;

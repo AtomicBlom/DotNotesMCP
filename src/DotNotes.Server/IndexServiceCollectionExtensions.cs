@@ -100,7 +100,7 @@ public static class IndexServiceCollectionExtensions
 				server.ServerInfo = new() { Name = "dotnotes-index", Version = "1" };
 				server.ServerInstructions = Instructions;
 			})
-			.WithTools<NoteIndexTools>()
+			.WithTools<NoteIndexTools>(ToolJson.Options)
 			.WithToolErrorMessages()
 			.WithRequestFilters(filters => filters.AddListToolsFilter(next => async (context, cancellationToken) =>
 			{

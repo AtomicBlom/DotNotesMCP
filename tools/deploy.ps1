@@ -48,12 +48,14 @@ param(
     # the wrong machine beats two downloads and a choice. `package` only.
     [string[]] $Runtime = @('win-x64', 'win-arm64'),
 
-    # Build a package that needs .NET 10 on the machine, roughly a fiftieth of the size.
+    # Build a package that needs .NET 10 on the machine, about a tenth of the size.
     #
-    # Self-contained is the default because an MCP server is started by an editor with no console
-    # attached: a missing runtime does not present as an error, it presents as a server that is
-    # never there, and an agent that reaches for a tool and gets nothing goes back to reading files.
-    # `package` only.
+    # Ahead-of-time is the default, and for two reasons that are the same reason. A missing runtime
+    # does not present as an error in a server an editor starts with no console attached -- it
+    # presents as a server that is never there, and an agent that reaches for a tool and gets
+    # nothing goes back to reading files and does not come back. And it starts in roughly half the
+    # time, which is the other half of that rule: a slow first call loses the tool just as finally
+    # as an absent one. `package` only.
     [switch] $FrameworkDependent,
 
     # Where the staged package goes. `package` only.
@@ -97,6 +99,29 @@ if ($Mode -eq 'deploy')
 
 if (-not (Test-OnWindows)) { throw 'Packaging produces a Windows release artifact.' }
 
+function Add-VswhereToPath
+{
+    <#
+        Puts the Visual Studio Installer directory on PATH for this process.
+
+        vcvarsall.bat calls `vswhere` expecting to find it there, and Visual Studio's own installer
+        does not put it there. What that costs is out of all proportion to what it is: vcvarsall
+        writes its complaint to stderr, the ILCompiler target captures stderr along with stdout, and
+        the first line of that capture is taken as the directory holding the linker. The build then
+        fails with "'vswhere.exe' is not recognized ... link.exe exited with code 123" -- quoting the
+        linker it did find, which reads as a broken toolchain rather than as a PATH entry.
+
+        Harmless where it is already there, and where Visual Studio is not installed the AOT publish
+        has a real prerequisite to complain about on its own.
+    #>
+    $installer = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'
+
+    if (-not (Test-Path (Join-Path $installer 'vswhere.exe'))) { return }
+    if ($env:PATH -split ';' -contains $installer) { return }
+
+    $env:PATH = "$env:PATH;$installer"
+}
+
 if (-not $Stage) { $Stage = Join-Path $repository 'artifacts\stage\win' }
 
 $artifacts = Split-Path -Parent (Split-Path -Parent $Stage)
@@ -104,7 +129,7 @@ $artifacts = Split-Path -Parent (Split-Path -Parent $Stage)
 if (Test-Path $Stage) { Remove-Item -LiteralPath $Stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 
-$selfContained = -not $FrameworkDependent
+if (-not $FrameworkDependent) { Add-VswhereToPath }
 
 foreach ($rid in $Runtime)
 {
@@ -112,11 +137,25 @@ foreach ($rid in $Runtime)
 
     $payload = Join-Path $Stage "payload\$rid"
 
-    Write-Host "publishing $rid$(if ($selfContained) { ' (self-contained)' } else { ' (framework-dependent)' })"
-    dotnet publish $project -c $Configuration -r $rid --self-contained $selfContained.ToString().ToLowerInvariant() `
-        -o $payload --nologo
+    # Cross-architecture is a supported path rather than a trick: the ILCompiler picks a host/target
+    # pair of MSVC tools, so one machine builds both. It does need both C++ toolsets installed --
+    # VC.Tools.x86.x64 and VC.Tools.ARM64 -- and says "Platform linker not found" when one is
+    # missing, which reads like a broken installation rather than a missing checkbox.
+    Write-Host "publishing $rid$(if ($FrameworkDependent) { ' (framework-dependent)' } else { ' (ahead-of-time)' })"
+
+    $publish = @($project, '-c', $Configuration, '-r', $rid, '-o', $payload, '--nologo', '-p:DebugType=none')
+    $publish += $(if ($FrameworkDependent) { '--self-contained', 'false' } else { '-p:PublishAot=true' })
+
+    dotnet publish @publish
 
     if ($LASTEXITCODE -ne 0) { throw "Publish failed for $rid with exit code $LASTEXITCODE." }
+
+    # Neither of these is payload, and both arrive anyway. The xml is documentation for somebody
+    # referencing the assemblies, generated only because IDE0005 does not run at build without it.
+    # The pdb is the native symbol file, which `DebugType=none` does not suppress because that
+    # setting is about managed symbols -- and at five times the size of the program it is the
+    # difference between installing 15 MB and installing 85.
+    Get-ChildItem -LiteralPath $payload -File -Include '*.xml', '*.pdb' -Recurse | Remove-Item -Force
 
     # The last point where a wrong answer is still "packaging is broken". An x64 binary staged into
     # the win-arm64 folder installs and runs emulated, so nothing downstream ever reports it.

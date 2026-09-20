@@ -1,5 +1,4 @@
 using YamlDotNet.Core;
-using YamlDotNet.Serialization;
 
 namespace DotNotes.Notes.Files;
 
@@ -77,8 +76,6 @@ public sealed class NoteFrontmatter
 	private static string Unprefixed(string tag) =>
 		tag.StartsWith(TopicPrefix, StringComparison.OrdinalIgnoreCase) ? tag[TopicPrefix.Length..] : tag;
 
-	private static readonly IDeserializer Reader = new DeserializerBuilder().Build();
-
 	private readonly Dictionary<string, object?> _values;
 
 	private NoteFrontmatter(Dictionary<string, object?> values, string? error)
@@ -103,9 +100,7 @@ public sealed class NoteFrontmatter
 
 		try
 		{
-			var parsed = Reader.Deserialize<Dictionary<string, object?>>(yaml);
-
-			return new NoteFrontmatter(parsed ?? [], error: null);
+			return new NoteFrontmatter(YamlBlock.Read(yaml), error: null);
 		}
 		catch (YamlException exception)
 		{
@@ -142,7 +137,7 @@ public sealed class NoteFrontmatter
 	/// </para>
 	/// </summary>
 	public string? Nested(string key, string inner) =>
-		_values.GetValueOrDefault(key) is IDictionary<object, object> map
+		_values.GetValueOrDefault(key) is IDictionary<string, object?> map
 			&& map.TryGetValue(inner, out var value)
 				? value as string
 				: null;

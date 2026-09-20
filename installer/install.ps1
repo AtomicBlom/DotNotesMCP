@@ -280,9 +280,10 @@ Assert-Payload -PayloadRoot $payload -Rid $rid
 $version = Get-PackageVersion -PayloadRoot $payload
 Write-Host "  version $version"
 
-# A self-contained package reports none of these. Named rather than enforced: somebody installing
-# onto a machine they are about to finish setting up is doing a reasonable thing.
-$problems = Get-PrerequisiteProblem -FrameworkDependent:(-not (Test-Path "$payload/System.Private.CoreLib.dll"))
+# Read off the payload rather than assumed, so an installer cannot be told one thing about a folder
+# that contains another. Named rather than enforced: somebody installing onto a machine they are
+# about to finish setting up is doing a reasonable thing.
+$problems = Get-PrerequisiteProblem -PayloadRoot $payload
 foreach ($problem in $problems) { Write-Warning $problem }
 
 $stopped = Stop-Install -Root $Destination

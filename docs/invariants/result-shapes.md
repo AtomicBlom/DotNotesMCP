@@ -27,3 +27,13 @@ Read before adding a tool, adding a field to a result, or changing an error path
 - **Read-only and destructive are stated per tool and pinned by a test.** Read-only is a promise a
   client may act on by not asking; destructive spends a confirmation. Marking the commonest write
   destructive teaches the user to click through the ones that matter.
+- **A new result type is listed in `ResultJson`.** The server ships ahead-of-time compiled, so the
+  SDK cannot discover a shape by reflection; one it has no metadata for throws while the host is
+  starting, naming the type. Loud, and only in a published build -- a debug run finds it by
+  reflection and says nothing. Only the roots are listed: the records a result carries come along
+  with it, so a new field needs no edit there and a new *tool* does.
+- **An enum in a result is a string, and that is not free.** A converter is chosen when the metadata
+  is generated rather than when it is used, so `ResultJson` sets `UseStringEnumConverter` itself.
+  Without it a published build sends `"scope": 1` where every other build sends
+  `"scope": "Repository"` -- no warning, no failure, and a wire format that depends on how the
+  server was compiled.

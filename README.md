@@ -113,10 +113,11 @@ Run `dotnotes-setup.exe`, or unzip `dotnotes-<version>-win.zip` and run `install
 identical bytes; they differ only in whether there is a wizard.
 
 One package carries **x64 and ARM64** and picks by reading the machine, because on Windows picking
-wrong does not fail — an x64 build runs on ARM64 under emulation and nothing says so. It is
-self-contained, so there is no runtime to install first. A server that will not start because a
-prerequisite is missing is invisible to the agent that wanted it, which is the one failure this is
-not allowed to have.
+wrong does not fail — an x64 build runs on ARM64 under emulation and nothing says so.
+
+It is compiled ahead of time: a single 15 MB executable, an 8.9 MB installer, no runtime to install,
+and it starts in about 67 ms rather than 127. Both of those are the same rule — a server that will
+not start, or is slow to, is invisible to the agent that wanted it.
 
 Tick the box on the last page to register it, or do it yourself:
 
@@ -158,7 +159,9 @@ dotnet test
 dotnet format --verify-no-changes
 ```
 
-Release artifacts, which need [Inno Setup](https://jrsoftware.org/isinfo.php) 6.3 or later:
+Release artifacts, which need [Inno Setup](https://jrsoftware.org/isinfo.php) 6.3 or later and both
+C++ toolsets — `VC.Tools.x86.x64` and `VC.Tools.ARM64`, since one machine cross-compiles both
+architectures:
 
 ```powershell
 ./tools/deploy.ps1 -Mode package   # stage both architectures, write the zip

@@ -53,7 +53,13 @@ public static class ToolListing
 
 		Normalise(root);
 
-		return JsonSerializer.SerializeToElement(root);
+		// Back through the parser rather than the serializer. SerializeToElement reflects over the
+		// node's runtime type, which is a thing an ahead-of-time build cannot see and warns about;
+		// writing the tree out and parsing it is the same round trip with none of that. The clone
+		// is because the element otherwise points into a buffer the document owns and disposes.
+		using var document = JsonDocument.Parse(root?.ToJsonString() ?? "null");
+
+		return document.RootElement.Clone();
 	}
 
 	/// <summary>Normalises every description under a node, at any depth.</summary>

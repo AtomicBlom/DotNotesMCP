@@ -164,4 +164,30 @@ public sealed class FrontmatterTests
 	public void Topics_are_every_tag_with_the_prefix_removed() =>
 		NoteFrontmatter.Parse("tags: [arm64, dn/msbuild]").Topics()
 			.ShouldBe(["arm64", "msbuild"]);
+
+	/// <summary>
+	/// A note's values are text, whatever YAML would otherwise make of them. This is the read half
+	/// of the rule <see cref="YamlScalar"/> keeps on write: a description of <c>no</c> that comes
+	/// back as a boolean is not merely the wrong type, it is a value that reads as absent, because
+	/// every accessor here asks for a string.
+	/// </summary>
+	[Test]
+	public void A_word_yaml_would_retype_is_still_text()
+	{
+		var matter = NoteFrontmatter.Parse("description: no\nversion: 10\nenabled: true");
+
+		matter.Scalar("description").ShouldBe("no");
+		matter.Scalar("version").ShouldBe("10");
+		matter.Scalar("enabled").ShouldBe("true");
+	}
+
+	/// <summary>An empty value is absent, not the empty string, or a fallback never fires.</summary>
+	[Test]
+	public void A_key_with_no_value_reads_as_absent()
+	{
+		var matter = NoteFrontmatter.Parse("name: one\ndescription:");
+
+		matter.Has("description").ShouldBeTrue();
+		matter.Scalar("description").ShouldBeNull();
+	}
 }

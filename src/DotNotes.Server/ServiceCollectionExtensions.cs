@@ -71,7 +71,7 @@ public static class ServiceCollectionExtensions
 				server.ServerInfo = new() { Name = "dotnotes", Version = Version };
 				server.ServerInstructions = Instructions;
 			})
-			.WithTools<NoteTools>()
+			.WithTools<NoteTools>(ToolJson.Options)
 			.WithCallOrigin()
 			.WithToolErrorMessages()
 			.WithLeanListing();

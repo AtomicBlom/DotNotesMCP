@@ -202,6 +202,24 @@ function Get-NoteStoreLocation
     return $default
 }
 
+function Get-PayloadKind
+{
+    <#
+        How a payload was published, read off the payload rather than passed alongside it -- so an
+        installer cannot be told one thing about a folder that contains another.
+
+        Three shapes, told apart by two files. An ahead-of-time payload is one native image and
+        carries no managed assembly at all. A self-contained one carries the runtime, so the
+        framework's own core assembly is sitting there. A framework-dependent one has the managed
+        assembly and nothing to run it with, which is the only shape that needs anything installed.
+    #>
+    param([Parameter(Mandatory)][string] $PayloadRoot)
+
+    if (-not (Test-Path (Join-Path $PayloadRoot 'DotNotes.Server.dll'))) { return 'ahead-of-time' }
+
+    return $(if (Test-Path (Join-Path $PayloadRoot 'System.Private.CoreLib.dll')) { 'self-contained' } else { 'framework-dependent' })
+}
+
 function Get-PrerequisiteProblem
 {
     <#
@@ -212,19 +230,19 @@ function Get-PrerequisiteProblem
         writes them to the console and the Inno installer reads them back out of a redirected file
         to put in a dialog. Neither of them knows what a prerequisite is; this does.
 
-        A self-contained payload has none, which is the reason it is the default. An MCP server is
-        started by an editor with no console attached, so a missing runtime does not present as an
-        error message -- it presents as a server that is simply never there, which is the one
-        failure this product cannot afford: an agent that reaches for a tool and gets nothing goes
-        back to reading files and does not come back.
+        Only a framework-dependent payload has any, which is the reason it is not the default. An
+        MCP server is started by an editor with no console attached, so a missing runtime does not
+        present as an error message -- it presents as a server that is simply never there, which is
+        the one failure this product cannot afford: an agent that reaches for a tool and gets
+        nothing goes back to reading files and does not come back.
 
         Nothing here is fatal. Somebody installing onto a machine they are about to finish setting
         up is doing a reasonable thing, and an installer that refuses is wrong more often than they
         are.
     #>
-    param([switch] $FrameworkDependent)
+    param([Parameter(Mandatory)][string] $PayloadRoot)
 
-    if (-not $FrameworkDependent) { return @() }
+    if ((Get-PayloadKind -PayloadRoot $PayloadRoot) -ne 'framework-dependent') { return @() }
 
     $problems = @()
 
@@ -235,11 +253,11 @@ function Get-PrerequisiteProblem
 
     if ($runtimes.Count -eq 0)
     {
-        $problems += 'No .NET runtime was found. This is the framework-dependent package, so it needs .NET 10 on the machine. Install it from https://dotnet.microsoft.com/download, or use the self-contained package, which needs nothing.'
+        $problems += 'No .NET runtime was found. This is the framework-dependent package, so it needs .NET 10 on the machine. Install it from https://dotnet.microsoft.com/download, or use the ordinary package, which needs nothing.'
     }
     elseif ($core.Count -eq 0)
     {
-        $problems += 'No .NET 10 runtime was found. DotNotes targets net10.0. Install it from https://dotnet.microsoft.com/download, or use the self-contained package, which needs nothing.'
+        $problems += 'No .NET 10 runtime was found. DotNotes targets net10.0. Install it from https://dotnet.microsoft.com/download, or use the ordinary package, which needs nothing.'
     }
 
     return $problems
@@ -298,10 +316,13 @@ function Get-PackageVersion
     #>
     param([Parameter(Mandatory)][string] $PayloadRoot)
 
-    $dll = Join-Path $PayloadRoot 'DotNotes.Server.dll'
-    if (-not (Test-Path $dll)) { return '0.0.0' }
+    # The executable rather than the managed assembly, because an ahead-of-time payload has no
+    # managed assembly at all -- it is one native image, and reading the version off a file that is
+    # not there would silently stamp every release 0.0.0.
+    $exe = Join-Path $PayloadRoot 'DotNotes.Server.exe'
+    if (-not (Test-Path $exe)) { return '0.0.0' }
 
-    $version = (Get-Item $dll).VersionInfo.ProductVersion
+    $version = (Get-Item $exe).VersionInfo.ProductVersion
     if (-not $version) { return '0.0.0' }
 
     # Informational versions carry build metadata after a '+' (0.3.0+1a2b3c4). Add/Remove Programs

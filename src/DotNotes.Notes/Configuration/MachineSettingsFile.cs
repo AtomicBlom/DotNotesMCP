@@ -14,13 +14,6 @@ namespace DotNotes.Notes.Configuration;
 /// </summary>
 public sealed record MachineSettingsFile
 {
-	private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
-	{
-		ReadCommentHandling = JsonCommentHandling.Skip,
-		AllowTrailingCommas = true,
-		WriteIndented = true,
-	};
-
 	/// <summary>
 	/// Where the machine store is, if not the default. An Obsidian vault is the point of this
 	/// setting: pointed there, the notes are files the person reads and edits beside the agent.
@@ -72,7 +65,7 @@ public sealed record MachineSettingsFile
 
 		try
 		{
-			var parsed = JsonSerializer.Deserialize<MachineSettingsFile>(File.ReadAllText(path), Options);
+			var parsed = JsonSerializer.Deserialize(File.ReadAllText(path), MachineSettingsJson.Default.MachineSettingsFile);
 
 			return (parsed ?? new MachineSettingsFile()) with { Path = path };
 		}
@@ -94,7 +87,7 @@ public sealed record MachineSettingsFile
 			var path = PathFor(localAppData);
 
 			Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
-			File.WriteAllText(path, JsonSerializer.Serialize(settings, Options));
+			File.WriteAllText(path, JsonSerializer.Serialize(settings, MachineSettingsJson.Default.MachineSettingsFile));
 
 			return true;
 		}
@@ -104,3 +97,20 @@ public sealed record MachineSettingsFile
 		}
 	}
 }
+
+/// <summary>
+/// The settings file's shape, generated rather than discovered by reflection.
+/// <para>
+/// The options live here rather than on a <see cref="JsonSerializerOptions"/> field because only the
+/// overloads that take a generated <c>JsonTypeInfo</c> are free of the annotation that says
+/// serialization may need types no static analysis can see. Passing a resolver to the reflecting
+/// overload silences nothing: it is the overload that is annotated, not the options.
+/// </para>
+/// </summary>
+[JsonSourceGenerationOptions(
+	JsonSerializerDefaults.Web,
+	ReadCommentHandling = JsonCommentHandling.Skip,
+	AllowTrailingCommas = true,
+	WriteIndented = true)]
+[JsonSerializable(typeof(MachineSettingsFile))]
+internal sealed partial class MachineSettingsJson : JsonSerializerContext;

@@ -23,6 +23,16 @@
     <MinVerTagPrefix>v</MinVerTagPrefix>
   </PropertyGroup>
 
+  <!-- Ships ahead-of-time compiled, so the analyzers that decide whether it can run that way are on
+       for every ordinary build. Without this they run only at `publish -r <rid> -p:PublishAot=true`,
+       and a reflecting call added on a Tuesday is found by whoever next cuts a release rather than
+       by whoever wrote it. Warnings are errors here, so it fails at the keystroke that caused it.
+
+       Not the tests: they run on a JIT and their runner does not claim to be trim-safe. -->
+  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('Tests'))">
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="MinVer" PrivateAssets="all" />
   </ItemGroup>
