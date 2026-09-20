@@ -114,6 +114,19 @@ Answer what the server would answer, without starting one:
 dotnet run --project src/DotNotes.Server -- --explain .
 ```
 
+Release artifacts, which need Inno Setup 6.3 or later:
+
+```
+./tools/deploy.ps1 -Mode package   # stage win-x64 and win-arm64, write the zip
+./tools/build-installer.ps1        # compile dotnotes-setup.exe from that same stage
+```
+
+**What installs and what uninstalls both live in `tools/DotNotes.Deploy.ps1`**, dot-sourced by
+`deploy.ps1`, by `installer/install.ps1` and by the Inno script's `[Code]` section. Nothing else
+deletes anything. A second copy of those rules is a second set of rules, and the version that gets
+missed is the one that removes a note store the other one spares --
+[the decision](docs/decisions/the-installer-cannot-remove-the-notes.md) has the whole argument.
+
 ## Dogfooding is the point, not a nicety
 
 This repository is the first consumer of its own notes. **If DotNotes does not beat restating a fact

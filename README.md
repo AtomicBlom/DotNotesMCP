@@ -107,13 +107,39 @@ costs a burnt session rather than an error.
 
 ## Install
 
+### From a release
+
+Run `dotnotes-setup.exe`, or unzip `dotnotes-<version>-win.zip` and run `install.ps1`. Both lay down
+identical bytes; they differ only in whether there is a wizard.
+
+One package carries **x64 and ARM64** and picks by reading the machine, because on Windows picking
+wrong does not fail — an x64 build runs on ARM64 under emulation and nothing says so. It is
+self-contained, so there is no runtime to install first. A server that will not start because a
+prerequisite is missing is invisible to the agent that wanted it, which is the one failure this is
+not allowed to have.
+
+Tick the box on the last page to register it, or do it yourself:
+
+```powershell
+claude mcp add dotnotes --scope user -- "$env:LOCALAPPDATA\BinaryVibrance\DotNotes\bin\DotNotes.Server.exe"
+```
+
+### From source
+
 ```powershell
 ./tools/deploy.ps1
 claude mcp add dotnotes --scope user -- "$env:LOCALAPPDATA\BinaryVibrance\DotNotes\bin\DotNotes.Server.exe"
 ```
 
+### What an uninstall leaves behind
+
 The install is `bin` *inside* the product folder, because that folder also holds your settings, the
-locks and — by default — your notes. Nothing `deploy.ps1` writes can reach a sibling.
+locks and — by default — your notes. Nothing any of these write can reach a sibling.
+
+**Uninstalling never removes your notes, and there is no flag that does.** The machine store holds
+exactly what is never committed anywhere, so it is the only thing here with no copy in a remote or a
+checkout. `-Purge` removes `settings.json` and nothing more.
+See [the decision](docs/decisions/the-installer-cannot-remove-the-notes.md).
 
 There is deliberately no committed `.mcp.json`: it would either pin every contributor to one
 machine's install path or point at a build output that may not exist yet.
@@ -131,6 +157,17 @@ dotnet build DotNotes.slnx
 dotnet test
 dotnet format --verify-no-changes
 ```
+
+Release artifacts, which need [Inno Setup](https://jrsoftware.org/isinfo.php) 6.3 or later:
+
+```powershell
+./tools/deploy.ps1 -Mode package   # stage both architectures, write the zip
+./tools/build-installer.ps1        # compile dotnotes-setup.exe from that same stage
+```
+
+The installer compiles from the staged tree the zip is made of rather than publishing its own, so
+the two carry identical bytes. Two publishes that agree are a coincidence; one publish laid down two
+ways is a guarantee.
 
 .NET 10. Four projects, because there is one process.
 [CLAUDE.md](CLAUDE.md) has the conventions, the rules that bind everywhere, and a trigger table
