@@ -172,11 +172,21 @@ The installer compiles from the staged tree the zip is made of rather than publi
 the two carry identical bytes. Two publishes that agree are a coincidence; one publish laid down two
 ways is a guarantee.
 
-**To cut a release, publish one on GitHub.** `release.yml` builds, tests, packages and attaches the
-installer and the zip. Nothing is built locally and nothing is uploaded by hand, which is what keeps
-the version honest: MinVer reads the tag, the runner checks out *at* the tag, and the workflow
-refuses if the stamped version and the release name disagree. `workflow_dispatch` runs the same path
-and attaches the artifacts to the run instead, for exercising it without cutting a version.
+**To cut a release, run `release.yml` from the Actions tab** and pick `patch`, `minor` or `major`.
+It works the next version out from the last tag, builds, tests and packages, and only then tags the
+remote and opens a **draft** release with the installer and the zip attached. Publishing that draft
+is one click.
+
+Nobody types a version, so a release cannot skip a number, reuse one or carry a typo.
+
+The order is the point: publishing is the irreversible half, so it happens last. A failure leaves no
+tag, no release and nothing to clean up — where triggering off a published release would put the
+version on the page at the moment it is emptiest, and a build that then died would leave it
+promising files it does not have.
+
+The tag is created in the runner and stays local until that final step, which is what lets MinVer
+stamp the binaries from the very tag about to be pushed; the run refuses if the two ever disagree.
+Pick `none` to build and check everything without releasing.
 
 The installer is unsigned, so SmartScreen warns on first download.
 

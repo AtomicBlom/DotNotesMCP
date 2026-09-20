@@ -1,27 +1,38 @@
-# What a tag turns into.
+# What a release is made of.
 #
 # ci.yml answers "is this commit good". This answers "is this artifact good", which is not the same
 # question: a tag can point at a commit no CI run ever saw, and a release is the worst place to find
 # that out. So it builds and tests before it packages, even though main already did.
 #
-# Triggered by publishing a release rather than by pushing a tag, so the GitHub UI is the whole
-# procedure: create the release, and the files appear on it. The runner checks out at the tag, which
-# is what stops the version and the release name disagreeing. Doing it by hand has the opposite
-# failure -- MinVer reads tags from the local clone, so tagging in the UI and building before
-# fetching stamps the binaries with the previous alpha and ships them under the new name.
+# The order is the whole design. Publishing is the irreversible half, so it happens last: the tag is
+# created here, in the runner's own clone, and reaches the remote only once the artifacts exist and
+# have been checked. A failure before that point leaves nothing behind -- no tag, no release, no
+# half-finished page for somebody to find -- and GitHub reports the failed run to whoever started
+# it. Triggering off a published release instead would mean the release goes public at the moment
+# it is emptiest, and a build that then died would leave a version promising files it does not have.
+#
+# Nobody types a version. The next one is read off the last tag and the part being increased, so a
+# release cannot skip a number, reuse one, or carry a typo -- and because the tag is local until the
+# final step, MinVer stamps the binaries from the very tag that is about to be pushed.
 name: release
 
 on:
-  release:
-    types: [published]
-  # Builds everything and attaches it to the run instead of to a release, so the whole path can be
-  # exercised without cutting a version. A release workflow that has never run is one that gets
-  # debugged during a release.
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Which part of the version to increase'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - none
+        default: patch
 
 concurrency:
-  group: release-${{ github.ref }}
-  # Never cancelled. A half-uploaded release is worse than a slow one.
+  group: release
+  # Never cancelled. A run interrupted between pushing the tag and creating the release is the one
+  # state this has to clean up by hand.
   cancel-in-progress: false
 
 permissions:
@@ -35,15 +46,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # MinVer reads the tag history to stamp a version, and a shallow clone has none.
+          # MinVer reads the tag history to stamp a version, and a shallow clone has none. The
+          # version this run cuts is read from those tags too.
           fetch-depth: 0
+
+      # Before anything is built, so a version that cannot be worked out costs five seconds rather
+      # than a five-minute build.
+      - name: Work out the version
+        if: inputs.bump != 'none'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Release tags only. A prerelease or a differently-shaped tag is not a number to count
+          # from, and picking one up would silently reset the sequence.
+          $tags = @(git tag --list 'v*' --sort=-v:refname | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' })
+          $last = if ($tags.Count -gt 0) { $tags[0] } else { 'v0.0.0' }
+
+          if ($last -notmatch '^v(\d+)\.(\d+)\.(\d+)$') { throw "cannot read a version out of $last." }
+
+          $major = [int]$Matches[1]
+          $minor = [int]$Matches[2]
+          $patch = [int]$Matches[3]
+
+          switch ('${{ inputs.bump }}')
+          {
+              'major' { $major++; $minor = 0; $patch = 0 }
+              'minor' { $minor++; $patch = 0 }
+              'patch' { $patch++ }
+          }
+
+          $version = "$major.$minor.$patch"
+
+          Write-Host "last released $last, cutting v$version"
+
+          if (git ls-remote --tags origin "refs/tags/v$version")
+          {
+              throw "v$version already exists on the remote, so the tag list here is behind. Fetch and try again."
+          }
+
+          # A release holds its tag name whether or not the tag exists, and a draft's tag does not
+          # exist yet -- so the check above cannot see one. Without this the run would push the tag,
+          # then fail creating the release, leaving a tag behind with nothing attached to it.
+          gh release view "v$version" 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { throw "a release named v$version already exists. Delete it first, draft or not." }
+          $global:LASTEXITCODE = 0
+
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      # Local, and lightweight. It is what MinVer stamps the build from, and it reaches the remote
+      # only in the final step -- so a failure anywhere below leaves the repository as it was.
+      - name: Tag locally so the build knows its version
+        if: inputs.bump != 'none'
+        shell: pwsh
+        run: git tag "v$env:VERSION"
 
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
 
-      # No package cache here, unlike ci.yml. A release runs rarely enough that the seconds saved do
-      # not pay for one more thing that can be wrong about the bytes being shipped.
       - run: dotnet build DotNotes.slnx --configuration Release
 
       # Never --nologo: it is a VSTest option, MTP reports an unrecognised one as "Zero tests ran"
@@ -70,6 +131,9 @@ jobs:
           Write-Host 'Inno Setup was not found; installing it'
           choco install innosetup --no-progress -y
 
+      # Ahead-of-time, both architectures, cross-compiled from this x64 runner. That needs both C++
+      # toolsets; the runner image carries them, and the failure if it ever stops carrying them is
+      # "Platform linker not found" rather than anything mentioning architectures.
       - name: Package
         shell: pwsh
         run: ./tools/deploy.ps1 -Mode package
@@ -79,38 +143,47 @@ jobs:
         run: ./tools/build-installer.ps1
 
       # A release named v0.1.0 carrying binaries stamped 0.2.0 is exactly the silent wrong answer
-      # this repository is organised against, and refusing costs one comparison. If this fires, the
-      # checkout is not at the tag the release names.
-      - name: The artifacts carry the tag's version
-        if: github.event_name == 'release'
+      # this repository is organised against, and refusing costs one comparison. It runs before
+      # anything is pushed, so the failure is a red run rather than a bad release.
+      - name: The artifacts carry the version being cut
+        if: inputs.bump != 'none'
         shell: pwsh
         run: |
           . ./tools/DotNotes.Deploy.ps1
           $staged = Get-PackageVersion -PayloadRoot 'artifacts/stage/win/payload/win-x64'
-          $tag = '${{ github.event.release.tag_name }}' -replace '^v', ''
 
-          if ($staged -ne $tag)
+          if ($staged -ne $env:VERSION)
           {
-              throw "the release is named $tag and the binaries are stamped $staged."
+              throw "cutting $env:VERSION and the binaries are stamped $staged."
           }
 
           Write-Host "both say $staged"
 
-      - name: Attach to the release
-        if: github.event_name == 'release'
+      # Kept whatever happens, so a `none` run has something to download and a released run has a
+      # copy that outlives an accidentally deleted release.
+      - name: Attach to the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnotes-${{ env.VERSION || 'unreleased' }}
+          path: |
+            artifacts/dotnotes-setup.exe
+            artifacts/dotnotes-*-win.zip
+
+      # The only step that touches the remote, and the last one. A draft: the artifacts are built
+      # and checked by now, but whether this is the release worth having is a judgement, and the
+      # notes are easier to write with the files in front of you. Publishing it is one click.
+      - name: Tag the remote and open a draft release
+        if: inputs.bump != 'none'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $zip = (Get-ChildItem artifacts/dotnotes-*-win.zip).FullName
-          gh release upload '${{ github.event.release.tag_name }}' artifacts/dotnotes-setup.exe $zip --clobber
+          git push origin "v$env:VERSION"
 
-      # The dispatch path's whole point: the same artifacts, reachable, without a release existing.
-      - name: Attach to the run
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: dotnotes-unreleased
-          path: |
-            artifacts/dotnotes-setup.exe
-            artifacts/dotnotes-*-win.zip
+          $zip = (Get-ChildItem artifacts/dotnotes-*-win.zip).FullName
+
+          gh release create "v$env:VERSION" artifacts/dotnotes-setup.exe $zip `
+            --draft --generate-notes --title "v$env:VERSION"
+
+          $url = gh release view "v$env:VERSION" --json url --jq .url
+          Write-Host "::notice title=Draft release ready::$url"
