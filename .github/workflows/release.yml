@@ -1,0 +1,116 @@
+# What a tag turns into.
+#
+# ci.yml answers "is this commit good". This answers "is this artifact good", which is not the same
+# question: a tag can point at a commit no CI run ever saw, and a release is the worst place to find
+# that out. So it builds and tests before it packages, even though main already did.
+#
+# Triggered by publishing a release rather than by pushing a tag, so the GitHub UI is the whole
+# procedure: create the release, and the files appear on it. The runner checks out at the tag, which
+# is what stops the version and the release name disagreeing. Doing it by hand has the opposite
+# failure -- MinVer reads tags from the local clone, so tagging in the UI and building before
+# fetching stamps the binaries with the previous alpha and ships them under the new name.
+name: release
+
+on:
+  release:
+    types: [published]
+  # Builds everything and attaches it to the run instead of to a release, so the whole path can be
+  # exercised without cutting a version. A release workflow that has never run is one that gets
+  # debugged during a release.
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  # Never cancelled. A half-uploaded release is worse than a slow one.
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # MinVer reads the tag history to stamp a version, and a shallow clone has none.
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # No package cache here, unlike ci.yml. A release runs rarely enough that the seconds saved do
+      # not pay for one more thing that can be wrong about the bytes being shipped.
+      - run: dotnet build DotNotes.slnx --configuration Release
+
+      # Never --nologo: it is a VSTest option, MTP reports an unrecognised one as "Zero tests ran"
+      # with exit 5, and that reads exactly like a discovery failure.
+      - name: Test
+        run: ./tests/DotNotes.UnitTests/bin/Release/net10.0/DotNotes.UnitTests.exe --no-banner
+
+      # The Windows images carry Inno Setup, but "usually present" is not a thing to discover on the
+      # one run that matters. Probing the same places Resolve-Iscc does, and installing only if none
+      # of them answer.
+      - name: Ensure Inno Setup
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "$env:LOCALAPPDATA/Programs/Inno Setup 6/ISCC.exe",
+            "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe",
+            "$env:ProgramFiles/Inno Setup 6/ISCC.exe"
+          )
+          $onPath = [bool](Get-Command iscc.exe -ErrorAction SilentlyContinue)
+          $installed = @($candidates | Where-Object { $_ -and (Test-Path $_) }).Count -gt 0
+
+          if ($onPath -or $installed) { Write-Host 'Inno Setup is present'; exit 0 }
+
+          Write-Host 'Inno Setup was not found; installing it'
+          choco install innosetup --no-progress -y
+
+      - name: Package
+        shell: pwsh
+        run: ./tools/deploy.ps1 -Mode package
+
+      - name: Build the installer
+        shell: pwsh
+        run: ./tools/build-installer.ps1
+
+      # A release named v0.1.0 carrying binaries stamped 0.2.0 is exactly the silent wrong answer
+      # this repository is organised against, and refusing costs one comparison. If this fires, the
+      # checkout is not at the tag the release names.
+      - name: The artifacts carry the tag's version
+        if: github.event_name == 'release'
+        shell: pwsh
+        run: |
+          . ./tools/DotNotes.Deploy.ps1
+          $staged = Get-PackageVersion -PayloadRoot 'artifacts/stage/win/payload/win-x64'
+          $tag = '${{ github.event.release.tag_name }}' -replace '^v', ''
+
+          if ($staged -ne $tag)
+          {
+              throw "the release is named $tag and the binaries are stamped $staged."
+          }
+
+          Write-Host "both say $staged"
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $zip = (Get-ChildItem artifacts/dotnotes-*-win.zip).FullName
+          gh release upload '${{ github.event.release.tag_name }}' artifacts/dotnotes-setup.exe $zip --clobber
+
+      # The dispatch path's whole point: the same artifacts, reachable, without a release existing.
+      - name: Attach to the run
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnotes-unreleased
+          path: |
+            artifacts/dotnotes-setup.exe
+            artifacts/dotnotes-*-win.zip

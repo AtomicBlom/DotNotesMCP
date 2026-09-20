@@ -169,6 +169,14 @@ The installer compiles from the staged tree the zip is made of rather than publi
 the two carry identical bytes. Two publishes that agree are a coincidence; one publish laid down two
 ways is a guarantee.
 
+**To cut a release, publish one on GitHub.** `release.yml` builds, tests, packages and attaches the
+installer and the zip. Nothing is built locally and nothing is uploaded by hand, which is what keeps
+the version honest: MinVer reads the tag, the runner checks out *at* the tag, and the workflow
+refuses if the stamped version and the release name disagree. `workflow_dispatch` runs the same path
+and attaches the artifacts to the run instead, for exercising it without cutting a version.
+
+The installer is unsigned, so SmartScreen warns on first download.
+
 .NET 10. Four projects, because there is one process.
 [CLAUDE.md](CLAUDE.md) has the conventions, the rules that bind everywhere, and a trigger table
 pointing at the invariant that covers whatever you are about to touch. `docs/decisions/` records
