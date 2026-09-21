@@ -94,10 +94,10 @@ public sealed record NoteContextResult : NoteResult
 	/// <summary>Checkout, LinkedWorktree, Submodule, Bare, or NoRepository.</summary>
 	public required string Kind { get; init; }
 
-	/// <summary>The checkout this call is inside, which is not the repository when it is a worktree.</summary>
+	/// <summary>The checkout this call is inside, and where its committed notes go.</summary>
 	public string? Worktree { get; init; }
 
-	/// <summary>The one working tree the notes are keyed to.</summary>
+	/// <summary>The main checkout, which names the repository the private store is keyed to.</summary>
 	public string? Root { get; init; }
 
 	/// <summary>The origin remote, folded so every spelling of it agrees.</summary>

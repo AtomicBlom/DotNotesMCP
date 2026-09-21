@@ -124,12 +124,20 @@ public sealed record NoteStores
 	}
 
 	/// <summary>
-	/// The committed store, which exists only where the repository has opted in.
+	/// The committed store, which exists only where the checkout has opted in.
+	/// <para>
+	/// It lives in the working tree the call came from, not in the main checkout. A committed note
+	/// is a tracked file: it belongs to the branch that learned the fact, is reviewed with the
+	/// change it describes, and reaches the other worktrees the way every other tracked file does.
+	/// Writing it into the main checkout instead puts it on whatever branch that happens to have out
+	/// and dirties a tree nobody in the session is looking at. Sharing before a merge is what the
+	/// machine store is for, and the machine store is keyed to the repository precisely so it
+	/// survives this worktree being discarded.
+	/// </para>
 	/// <para>
 	/// Committing notes into a shared repository is the repository owner's decision, not one an
 	/// agent makes on first contact: without the gate, a server registered once and used everywhere
-	/// drops an untracked folder into whichever repository happened to be open. The gate is free,
-	/// because the file that opens it is the one that names the repository anyway.
+	/// drops an untracked folder into whichever repository happened to be open.
 	/// </para>
 	/// </summary>
 	private static NoteStore RepositoryStore(RepositoryIdentity identity)
@@ -144,21 +152,22 @@ public sealed record NoteStores
 			return NoteStore.Refused(NoteScope.Repository, string.Empty, because);
 		}
 
-		var root = identity.Root!;
+		var worktree = identity.Worktree!;
 
 		if (identity.Config is not { } config)
 		{
 			return NoteStore.Refused(
 				NoteScope.Repository,
-				Path.Combine(root, RepositoryConfigFile.DirectoryName, "notes"),
-				$"This repository has not opted in to committed notes. Create "
-					+ $"{RepositoryConfigFile.PathFor(root)} containing "
+				Path.Combine(worktree, RepositoryConfigFile.DirectoryName, "notes"),
+				$"This checkout has not opted in to committed notes. Create "
+					+ $"{RepositoryConfigFile.PathFor(worktree)} containing "
 					+ $$"""{"repository": "{{identity.Name}}"}""" + " and commit it. Until then, use machine scope.");
 		}
 
 		// Relative to the config file, so a repository that wants its notes somewhere else says so
 		// once and every clone agrees. Nothing overrides it per machine: a repository store at a
-		// path that differs per machine is not a repository store.
+		// path that differs per machine is not a repository store. The config is this checkout's, so
+		// the path this resolves to is inside this working tree.
 		var configured = Path.Combine(Path.GetDirectoryName(config.Path!)!, config.Notes);
 
 		return NoteStore.Available(NoteScope.Repository, CanonicalPath.Of(configured));

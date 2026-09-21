@@ -27,15 +27,15 @@ public static class ToolDescriptions
 			+ "whole note is a choice rather than the cost of looking.";
 
 	/// <summary>
-	/// The diagnostic. It names the worktree and the repository separately because that difference
-	/// is the server's whole premise, and seeing them is how a caller confirms a worktree is reading
-	/// the repository's notes rather than its own.
+	/// The diagnostic. It names the worktree and the repository separately because the two stores
+	/// answer to different ones, and seeing both is how a caller confirms which store an answer came
+	/// from before concluding a note is missing.
 	/// </summary>
 	public const string Context =
 		"Which repository this directory resolved to and how, where both stores are, and whether each "
-			+ "can be written to. Notes are keyed to the repository rather than the worktree, so every "
-			+ "checkout shares one set; this says which, and what to fix when a store refuses. Not "
-			+ "needed before other calls -- reach for it when an answer looks wrong.";
+			+ "can be written to. The private store is keyed to the repository and the committed one "
+			+ "to this worktree; this says which, and what to fix when a store refuses. Not needed "
+			+ "before other calls -- reach for it when an answer looks wrong.";
 
 	/// <summary>
 	/// Naming the identifier behaviour is worth its characters. It is the one thing about this search

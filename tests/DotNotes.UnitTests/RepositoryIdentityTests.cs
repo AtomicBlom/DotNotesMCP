@@ -206,6 +206,32 @@ public sealed class RepositoryIdentityTests
 	}
 
 	/// <summary>
+	/// A committed file is a branch's file, so two checkouts can hold two spellings of the name at
+	/// once -- mid-rename, or on a branch that adds the config. Only the main checkout is allowed to
+	/// answer, because a name that varies by branch is a repository with two machine stores, which
+	/// is the fragmentation this whole table exists to detect.
+	/// </summary>
+	[Test]
+	public void A_worktree_cannot_rename_the_repository_out_from_under_the_machine_store()
+	{
+		using var fixture = GitFixture.Create();
+		var main = fixture.Checkout("RoseMCP");
+		var worktree = fixture.LinkedWorktree(main, "Rename");
+
+		GitFixture.Write(main, ".dotnotes/dotnotes.json", """{ "repository": "rose-mcp" }""");
+		GitFixture.Write(worktree, ".dotnotes/dotnotes.json", """{ "repository": "something-else" }""");
+
+		var identity = RepositoryIdentity.For(worktree);
+
+		identity.Key.ShouldBe(RepositoryIdentity.For(main).Key);
+		identity.Name.ShouldBe("rose-mcp");
+
+		// The checkout's own config still gates and locates its committed notes; it just does not name.
+		identity.Config!.Repository.ShouldBe("something-else");
+		identity.NamingConfig!.Repository.ShouldBe("rose-mcp");
+	}
+
+	/// <summary>
 	/// The remote beats the folder name, which is what makes the x64 and ARM64 machines agree: one
 	/// repository cloned to two paths, under two folder names, is one store.
 	/// </summary>

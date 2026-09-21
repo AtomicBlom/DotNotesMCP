@@ -9,8 +9,15 @@ namespace DotNotes.Notes.Repositories;
 /// A worktree is not an identity, and that is the defect this server exists to remove. Claude Code
 /// keys its memory on the working directory, six worktrees of one repository is an ordinary week
 /// rather than a corner case, and the result is a repository whose notes are in six stores that
-/// cannot see each other -- with the seventh worktree starting empty. Keying on what
-/// <c>git rev-parse --git-common-dir</c> names collapses all of them to one.
+/// cannot see each other -- with the seventh worktree starting empty. Worse, deleting a worktree
+/// strands its notes for good: the path no longer matches anything, so nothing will ever resolve to
+/// them again. Keying on what <c>git rev-parse --git-common-dir</c> names collapses all of them to
+/// one that outlives every checkout.
+/// </para>
+/// <para>
+/// This is an identity, not a location. It says which repository a call is about, and so where the
+/// private store is; it does not say where a committed note goes, which is the working tree the call
+/// came from. See <see cref="Stores.NoteStores"/>.
 /// </para>
 /// </summary>
 public sealed record RepositoryIdentity
@@ -20,10 +27,17 @@ public sealed record RepositoryIdentity
 
 	public required RepositoryKind Kind { get; init; }
 
-	/// <summary>The working tree this call is inside: a linked worktree's own root, not the repository's.</summary>
+	/// <summary>
+	/// The working tree this call is inside: a linked worktree's own root, not the repository's.
+	/// Committed notes live here, because a note committed with the code belongs to the branch that
+	/// is checked out and is discarded with it.
+	/// </summary>
 	public string? Worktree { get; init; }
 
-	/// <summary>The one working tree notes are keyed to. The main checkout, whichever worktree asked.</summary>
+	/// <summary>
+	/// The main checkout, whichever worktree asked. It names the repository, which is what keeps
+	/// every worktree on one machine store.
+	/// </summary>
 	public string? Root { get; init; }
 
 	/// <summary>What <c>git rev-parse --git-common-dir</c> answers, reached through <c>commondir</c>.</summary>
@@ -45,17 +59,33 @@ public sealed record RepositoryIdentity
 	public required RepositoryNameSource NamedBy { get; init; }
 
 	/// <summary>
-	/// The committed config, or null where the repository has not opted in. Null is why repository
-	/// scope refuses: see <see cref="RepositoryConfigFile"/>.
+	/// The committed config in <see cref="Worktree"/>, or null where this checkout has not opted in.
+	/// Null is why repository scope refuses: see <see cref="RepositoryConfigFile"/>.
+	/// <para>
+	/// Read from the checkout the caller is in rather than from <see cref="Root"/>, because opting
+	/// in happens on a branch. Gating on the main checkout means creating the file the refusal just
+	/// named does nothing until it merges, which leaves the person no reason to doubt they did it
+	/// right.
+	/// </para>
 	/// </summary>
 	public RepositoryConfigFile? Config { get; init; }
+
+	/// <summary>
+	/// The committed config in <see cref="Root"/>, which is the only one allowed to name the
+	/// repository. A name taken from the checkout the caller is in gives one repository two machine
+	/// stores the moment one branch spells it differently, and that is the fragmentation this server
+	/// removes arriving by a different door. The same file as <see cref="Config"/> everywhere except
+	/// a linked worktree.
+	/// </summary>
+	public RepositoryConfigFile? NamingConfig { get; init; }
 
 	/// <summary>
 	/// Whether this repository has a working tree to commit a note to. False for a bare repository
 	/// and for a directory outside git, both of which leave machine scope working and repository
 	/// scope refusing.
 	/// </summary>
-	public bool HasWorkingTree => Root is { Length: > 0 };
+	public bool HasWorkingTree =>
+		Kind is not (RepositoryKind.Bare or RepositoryKind.NoRepository) && Worktree is { Length: > 0 };
 
 	/// <summary>
 	/// The identity of the directory a call came from. Pure over disk: no process is started, and at
@@ -83,9 +113,10 @@ public sealed record RepositoryIdentity
 
 		if (layout is null) return Outside(origin);
 
-		var config = RepositoryConfigFile.Read(layout.Root);
+		var config = RepositoryConfigFile.Read(layout.Worktree);
+		var naming = NamingConfigFor(layout, config);
 		var remote = RemoteName.Normalise(GitConfigFile.OriginUrl(layout.CommonDirectory));
-		var (name, namedBy) = Named(layout, config, remote);
+		var (name, namedBy) = Named(layout, naming, remote);
 
 		return new RepositoryIdentity
 		{
@@ -99,8 +130,18 @@ public sealed record RepositoryIdentity
 			Key = namedBy == RepositoryNameSource.DirectoryName ? Unique(name, layout.Root ?? origin) : name,
 			NamedBy = namedBy,
 			Config = config,
+			NamingConfig = naming,
 		};
 	}
+
+	/// <summary>
+	/// The config allowed to name the repository. A linked worktree is the only shape whose checkout
+	/// can hold a different answer from another checkout of the same repository, so it is the only
+	/// one that reads a second file; everywhere else the checkout's own config is the repository's.
+	/// </summary>
+	/// <exception cref="DotNotesConfigurationException">The main checkout's config is there and malformed.</exception>
+	private static RepositoryConfigFile? NamingConfigFor(GitLayout layout, RepositoryConfigFile? config) =>
+		layout.Kind == RepositoryKind.LinkedWorktree ? RepositoryConfigFile.Read(layout.Root) : config;
 
 	/// <summary>
 	/// A directory with no git above it. It still gets a name, because machine-scope notes are filed
@@ -122,19 +163,21 @@ public sealed record RepositoryIdentity
 			Key = Unique(name, origin),
 			NamedBy = RepositoryNameSource.DirectoryName,
 			Config = null,
+			NamingConfig = null,
 		};
 	}
 
 	/// <summary>
 	/// The naming chain, in the order a later step cannot overrule an earlier one: what a person
-	/// committed, then what the remote says, then what the folder is called.
+	/// committed, then what the remote says, then what the folder is called. Every step answers for
+	/// the repository rather than for the checkout, so no two worktrees can disagree.
 	/// </summary>
 	private static (string Name, RepositoryNameSource NamedBy) Named(
 		GitLayout layout,
-		RepositoryConfigFile? config,
+		RepositoryConfigFile? naming,
 		string? remote)
 	{
-		if (config?.Repository is { Length: > 0 } configured)
+		if (naming?.Repository is { Length: > 0 } configured)
 		{
 			return (Slug.Of(configured), RepositoryNameSource.ConfiguredName);
 		}

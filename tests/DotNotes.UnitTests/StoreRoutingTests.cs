@@ -68,6 +68,63 @@ public sealed class StoreRoutingTests
 	}
 
 	/// <summary>
+	/// The other half, and the one the two stores exist to separate. A committed note is a tracked
+	/// file: it belongs to the branch that learned the fact and is reviewed with the change it
+	/// describes. Writing it into the main checkout puts it on whatever branch that has out and
+	/// dirties a tree nobody in the session is looking at.
+	/// </summary>
+	[Test]
+	public void A_worktree_commits_its_notes_to_its_own_checkout()
+	{
+		using var fixture = GitFixture.Create();
+		var main = fixture.Checkout("Loom");
+		var worktree = fixture.LinkedWorktree(main, "Review");
+
+		GitFixture.Write(main, ".dotnotes/dotnotes.json", """{ "repository": "loom" }""");
+		GitFixture.Write(worktree, ".dotnotes/dotnotes.json", """{ "repository": "loom" }""");
+
+		var stores = NoteStores.For(worktree, Options(fixture));
+
+		stores.Repo.Path.ShouldBe(Path.Combine(worktree, ".dotnotes", "notes"));
+		stores.Repo.Path.ShouldNotBe(NoteStores.For(main, Options(fixture)).Repo.Path);
+	}
+
+	/// <summary>
+	/// Adding the opt-in is itself a commit, and a commit happens on a branch. Gating on the main
+	/// checkout means creating the file the refusal just named does nothing until it merges, which
+	/// leaves the person no reason left to doubt they did it right.
+	/// </summary>
+	[Test]
+	public void A_worktree_opts_in_on_its_own_branch()
+	{
+		using var fixture = GitFixture.Create();
+		var main = fixture.Checkout("Loom");
+		var worktree = fixture.LinkedWorktree(main, "Review");
+
+		NoteStores.For(worktree, Options(fixture)).Repo.IsAvailable.ShouldBeFalse();
+
+		GitFixture.Write(worktree, ".dotnotes/dotnotes.json", """{ "repository": "loom" }""");
+
+		NoteStores.For(worktree, Options(fixture)).Repo.IsAvailable.ShouldBeTrue();
+		NoteStores.For(main, Options(fixture)).Repo.IsAvailable.ShouldBeFalse();
+	}
+
+	/// <summary>
+	/// The refusal has to name a file in the checkout the caller is in, because that is the one they
+	/// can create. Naming the main checkout's sends them to edit another branch.
+	/// </summary>
+	[Test]
+	public void The_refusal_names_a_file_in_the_checkout_that_asked()
+	{
+		using var fixture = GitFixture.Create();
+		var worktree = fixture.LinkedWorktree(fixture.Checkout("Loom"), "Review");
+
+		var stores = NoteStores.For(worktree, Options(fixture));
+
+		stores.Repo.Unavailable!.ShouldContain(RepositoryConfigFile.PathFor(worktree));
+	}
+
+	/// <summary>
 	/// Repository scope is off until the repository opts in, so a server registered once and used
 	/// everywhere never drops an untracked folder into somebody else's repository.
 	/// </summary>

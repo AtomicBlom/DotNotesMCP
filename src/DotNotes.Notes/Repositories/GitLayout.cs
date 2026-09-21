@@ -34,13 +34,18 @@ public sealed record GitLayout
 	/// </summary>
 	public required string CommonDirectory { get; init; }
 
-	/// <summary>The working tree this call is inside -- a linked worktree's own root, not the repository's.</summary>
+	/// <summary>
+	/// The working tree this call is inside -- a linked worktree's own root, not the repository's.
+	/// Committed notes live here, because a note committed with the code belongs to the branch that
+	/// is checked out.
+	/// </summary>
 	public required string Worktree { get; init; }
 
 	/// <summary>
-	/// The one working tree notes are keyed to: the main checkout, whichever worktree asked. Null
-	/// where there is none to derive, which is a bare repository or a common directory that is not
-	/// named <c>.git</c> and so implies no tree beside it.
+	/// The main checkout, whichever worktree asked. It is what names the repository, so every
+	/// worktree agrees on one name and one machine store. Null where there is none to derive, which
+	/// is a bare repository or a common directory that is not named <c>.git</c> and so implies no
+	/// tree beside it.
 	/// </summary>
 	public string? Root { get; init; }
 
@@ -101,10 +106,10 @@ public sealed record GitLayout
 			CommonDirectory = common,
 			Worktree = CanonicalPath.Of(worktree),
 
-			// A submodule's working tree is its own, and a linked worktree's repository lives beside
-			// the common directory. Anywhere else -- a repository moved aside with
-			// --separate-git-dir -- there is no tree to infer, and saying so beats naming a
-			// directory that holds somebody else's files.
+			// A submodule names itself, and a linked worktree is named by the checkout beside the
+			// common directory. Anywhere else -- a repository moved aside with --separate-git-dir --
+			// there is no such checkout to infer, and saying so beats naming a directory that holds
+			// somebody else's files. Nothing is stored here either way: this decides the name.
 			Root = kind switch
 			{
 				RepositoryKind.Submodule => CanonicalPath.Of(worktree),

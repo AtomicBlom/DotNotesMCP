@@ -1,10 +1,12 @@
 # DotNotesMCP
 
-An MCP server that gives coding agents durable notes about a codebase, keyed to the **repository**
-rather than the working directory, in two stores: one committed with the code, one private to this
-machine and pointable at an Obsidian vault. It replaces a memory that fragments across worktrees --
-Loom's is split over six directories, RoseMCP's over eight, and `D--Contoso-Platform` and
-`d--Contoso-Platform` are two stores for one repository because a drive letter is not case-sensitive.
+An MCP server that gives coding agents durable notes about a codebase, in two stores: one committed
+with the code, on the branch that learned the fact; one private to this machine, keyed to the
+**repository** rather than the working directory, and pointable at an Obsidian vault. It replaces a
+memory that fragments across worktrees -- Loom's is split over six directories, RoseMCP's over
+eight, `D--Contoso-Platform` and `d--Contoso-Platform` are two stores for one repository because a
+drive letter is not case-sensitive, and whatever a deleted worktree learned is unreachable, because
+no path resolves to its key again.
 
 ## Architecture
 
@@ -13,7 +15,8 @@ client --stdio--> DotNotes.Server            (default mode: seven note_* tools)
                      |
                      +--> machine store   %LOCALAPPDATA%\BinaryVibrance\DotNotes\notes
                      |                    or an Obsidian vault, per machine
-                     +--> repository store  <repo root>/.dotnotes/notes/   (committed)
+                     |                    keyed to the repository: every worktree, and outliving them
+                     +--> repository store  <this checkout>/.dotnotes/notes/   (committed, per branch)
 
 client --stdio--> DotNotes.Server --mode index   (five note_index_* tools and nothing else)
 ```
@@ -46,10 +49,13 @@ These are the ones you can break without going anywhere near the subsystem that 
 - **Nothing writes to stdout in stdio mode** except protocol frames. All logging goes to stderr. A
   stray `Console.WriteLine` corrupts the stream, and the failure looks like a protocol bug rather
   than a print statement.
-- **A note is keyed to the repository, never to the worktree and never to the working directory.**
-  Resolution happens once, in `RepositoryIdentity.For`, and every store path derives from its
-  answer. A path used directly is a store that fragments six ways -- the defect this server exists
-  to remove.
+- **A repository is identified by the repository, never by the worktree and never by the working
+  directory.** Resolution happens once, in `RepositoryIdentity.For`. A path used directly is a store
+  that fragments six ways and strands the sixth when that worktree is deleted -- the defect this
+  server exists to remove. The **machine** store derives from that identity. The **repository** store
+  does not: it is the checkout's own `.dotnotes/notes/`, because a committed note is a tracked file
+  that belongs to the branch that learned the fact, and git reconciles it already.
+  [The decision](docs/decisions/the-committed-store-follows-the-checkout.md).
 - **A note's scope is stated, never inferred.** There is no default on a write. Guessing wrong
   commits a machine-specific fact to a shared repository, and a pushed note cannot be recalled.
 - **Every result names the scope and the repository that answered.** Attribution is added once, in

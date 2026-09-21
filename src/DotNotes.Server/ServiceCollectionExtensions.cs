@@ -22,15 +22,17 @@ public static class ServiceCollectionExtensions
 	/// a decision from the files.
 	/// <para>
 	/// What earns a place is what no per-tool description can carry, because it is about the server
-	/// rather than about one tool: that notes are keyed to the repository so worktrees share them,
-	/// that there is no setup call, and what is worth writing down at all. The scope decision, which
-	/// is the one with no undo, is deliberately not here -- it belongs on the <c>scope</c> argument
-	/// of the tool that writes, where it is read at the moment it is being made rather than loaded
-	/// into every session that never writes a note.
+	/// rather than about one tool: which store outlives this checkout and which travels with the
+	/// branch, that there is no setup call, and what is worth writing down at all. The scope
+	/// decision, which is the one with no undo, is deliberately not here -- it belongs on the
+	/// <c>scope</c> argument of the tool that writes, where it is read at the moment it is being
+	/// made rather than loaded into every session that never writes a note.
 	/// </para>
 	/// </summary>
 	private const string Instructions = """
-		Durable notes for this repository, keyed to the repository so every worktree shares one set.
+		Durable notes for this repository. The private store is keyed to the repository, so every
+		worktree shares it and discarding a worktree does not lose it; committed notes live in the
+		checkout you are in and travel with its branch.
 		Markdown the user also reads and edits in Obsidian.
 
 		- note_search before reconstructing a decision from files, or asking what may already be

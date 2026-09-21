@@ -11,7 +11,12 @@ repository nobody has written notes for.
   worktree's `.git` is a file naming a directory under the main repository's `worktrees` folder, and
   following the `commondir` inside it is what collapses every worktree onto one key. Skip that step
   and a repository has as many stores as it has checkouts -- six for one of them in the memory this
-  replaces, with the seventh starting empty.
+  replaces, with the seventh starting empty and a deleted one stranded for good, because no path
+  will ever resolve to its key again.
+- **This file is about identity, which is not the same question as location.** The key it produces
+  says where the *machine* store is. A committed note goes to the working tree the call came from --
+  `Worktree`, not `Root` -- because git already reconciles a tracked store. Read
+  [store-routing.md](store-routing.md) before changing where anything is written.
 - **A submodule is its own repository.** It reaches its git directory through a `.git` file exactly
   as a worktree does, and the only difference is that it has no `commondir`. Treating the two alike
   files a vendored library's notes under whichever superproject happens to contain it.

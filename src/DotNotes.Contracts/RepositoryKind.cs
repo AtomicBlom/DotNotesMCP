@@ -14,7 +14,8 @@ public enum RepositoryKind
 
 	/// <summary>
 	/// A linked worktree: <c>.git</c> is a file naming a directory under the main repository's
-	/// <c>worktrees</c> folder, which carries a <c>commondir</c>. Its notes are the main checkout's.
+	/// <c>worktrees</c> folder, which carries a <c>commondir</c>. It shares the main checkout's
+	/// private notes and commits its own.
 	/// </summary>
 	LinkedWorktree,
 

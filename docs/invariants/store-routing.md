@@ -6,9 +6,23 @@ Read before touching `NoteStores`, a scope, the machine-store path, or the confi
   private note can be promoted, and a pushed one cannot be recalled. The explanation lives on the
   argument rather than in the instructions, because that is where it is read at the moment the
   choice is being made.
-- **Repository scope is available only where the repository opted in**, by committing
+- **The machine store is keyed to the repository; the repository store is the checkout's own.** The
+  two fail in opposite directions, so they do not share a rule. An untracked store keyed to a
+  checkout is stranded when that checkout is deleted, and nothing will resolve to it again. A
+  tracked store keyed to the repository lands notes on whichever branch the main checkout has out,
+  in a working tree nobody in the session is looking at. See
+  [the decision](../decisions/the-committed-store-follows-the-checkout.md).
+- **Repository scope is available only where the checkout opted in**, by committing
   `.dotnotes/dotnotes.json`. Without the gate, a server registered once and used everywhere drops an
-  untracked folder into whichever repository happened to be open, on an agent's initiative.
+  untracked folder into whichever repository happened to be open, on an agent's initiative. The gate
+  is read from the checkout the call came from, because opting in is a commit and a commit happens on
+  a branch -- gating on the main checkout makes creating the file the refusal just named do nothing
+  until it merges.
+- **Only the main checkout's config may name the repository.** The gate and the notes path come from
+  the checkout that asked; the name does not. A name that varies by branch is one repository with two
+  machine stores, which is the fragmentation this server removes arriving by a different door.
+  `RepositoryIdentity.NamingConfig` is the one that names, and it is the same file as `Config`
+  everywhere but a linked worktree.
 - **The default machine store is created on demand; a store somebody chose is not.** A configured
   path that cannot be reached refuses and names itself. Falling back would write notes to a second
   place nobody is looking at, which is the fragmentation this server removes arriving by a different
