@@ -36,13 +36,6 @@ public sealed record RepositoryEvidence
 	/// </summary>
 	public Dictionary<string, StoreSighting> Stores { get; set; } = [];
 
-	/// <summary>
-	/// The roots a repository's commit-graph listed, by folded common directory, and the stamp of the
-	/// graph they were read from. A large repository's graph is megabytes, and it changes only when
-	/// git collects.
-	/// </summary>
-	public Dictionary<string, GraphRoots> Graphs { get; set; } = [];
-
 	/// <summary>Why the file could not be read, or null. A file that cannot be read is never written over.</summary>
 	[JsonIgnore]
 	public string? Unreadable { get; set; }
@@ -101,28 +94,7 @@ public sealed record RepositoryEvidence
 		return NoteFile.Write(path, current.Serialized());
 	}
 
-	/// <summary>
-	/// A repository's roots: the commit-graph's, from the recorded scan while the graph is unchanged,
-	/// and the reflog's initial commit. Sorted, so a comparison with what is recorded is exact.
-	/// </summary>
-	public IReadOnlyList<string> RootsOf(string commonDirectory)
-	{
-		var stamp = RootCommits.GraphStamp(commonDirectory);
-		var graph = Graphs.TryGetValue(PathCasing.Fold(commonDirectory), out var recorded) && recorded.Stamp == stamp
-			? recorded.Commits
-			: stamp.Length == 0 ? [] : RootCommits.InGraph(commonDirectory);
-
-		IEnumerable<string> roots = graph;
-
-		if (RootCommits.Initial(commonDirectory) is { } initial) roots = roots.Append(initial);
-
-		return [.. roots.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
-	}
-
-	/// <summary>
-	/// Adds what one call saw to the store it used: the repository, its remote, its roots, and the
-	/// graph scan they came from.
-	/// </summary>
+	/// <summary>Adds what one call saw to the store it used: the repository, its remote and its roots.</summary>
 	/// <returns>Whether anything was new.</returns>
 	public bool Saw(string store, RepositoryIdentity identity, IReadOnlyList<string> roots)
 	{
@@ -135,15 +107,6 @@ public sealed record RepositoryEvidence
 
 		foreach (var root in roots) changed |= Add(sighting.Roots, root, StringComparer.Ordinal);
 
-		var stamp = RootCommits.GraphStamp(common);
-		var key = PathCasing.Fold(common);
-
-		if (stamp.Length > 0 && (!Graphs.TryGetValue(key, out var graph) || graph.Stamp != stamp))
-		{
-			Graphs[key] = new GraphRoots { Stamp = stamp, Commits = [.. RootCommits.InGraph(common).Distinct().Order(StringComparer.Ordinal)] };
-			changed = true;
-		}
-
 		return changed;
 	}
 
@@ -155,7 +118,7 @@ public sealed record RepositoryEvidence
 	/// <param name="resolved">The store the naming chain chose, which is never its own candidate.</param>
 	/// <param name="machineRoot">The root the stores are folders of. A store under another root is not reachable from this configuration.</param>
 	/// <param name="identity">The repository asking.</param>
-	/// <param name="roots">Its roots, from <see cref="RootsOf"/>.</param>
+	/// <param name="roots">Its roots, from <see cref="RootCommits.Of"/>.</param>
 	public IReadOnlyList<MoveCandidate> CandidatesFor(
 		string resolved,
 		string machineRoot,
@@ -243,7 +206,6 @@ public sealed record RepositoryEvidence
 					Roots = [.. pair.Value.Roots.Order(StringComparer.Ordinal)],
 					Dismissed = [.. pair.Value.Dismissed.Order(StringComparer.Ordinal)],
 				}),
-			Graphs = Graphs.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToDictionary(pair => pair.Key, pair => pair.Value),
 		};
 
 		return JsonSerializer.Serialize(sorted, RepositoryEvidenceJson.Default.RepositoryEvidence) + "\n";
@@ -256,9 +218,6 @@ public sealed record RepositoryEvidence
 	private static RepositoryEvidence Folded(RepositoryEvidence read) => read with
 	{
 		Stores = read.Stores
-			.GroupBy(pair => PathCasing.Fold(pair.Key))
-			.ToDictionary(group => group.Key, group => group.First().Value),
-		Graphs = read.Graphs
 			.GroupBy(pair => PathCasing.Fold(pair.Key))
 			.ToDictionary(group => group.Key, group => group.First().Value),
 	};
@@ -287,14 +246,6 @@ public sealed class StoreSighting
 
 	/// <summary>Stores a person has said are not this one's, by folded path.</summary>
 	public List<string> Dismissed { get; set; } = [];
-}
-
-/// <summary>The roots one commit-graph listed, and the graph's stamp when they were read.</summary>
-public sealed class GraphRoots
-{
-	public string Stamp { get; set; } = string.Empty;
-
-	public List<string> Commits { get; set; } = [];
 }
 
 /// <summary>A store the evidence attributes to this repository under another key.</summary>

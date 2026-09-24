@@ -28,4 +28,11 @@ public enum RepositoryKind
 
 	/// <summary>A repository with no working tree, so nothing to commit a note to.</summary>
 	Bare,
+
+	/// <summary>
+	/// No <c>.git</c>, but a <c>.dotnotes/dotnotes.json</c> above this directory naming a repository
+	/// -- a Perforce workspace, or anything else git does not know about. Its committed notes are
+	/// committed to whatever it is.
+	/// </summary>
+	Configured,
 }

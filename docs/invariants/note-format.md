@@ -24,6 +24,9 @@ Read before touching frontmatter keys, the splice, slugs, wikilinks or the index
 - **A rename rewrites every inbound link, and recomputes its prefix.** A move between stores changes
   what a link has to say: a private note linking to one that has just been committed must say
   `[[repo:name]]` or it resolves to nothing.
+- **The generated index is how a committed store is found**, so its frontmatter and marker come
+  first, inside the head `CommittedStores` reads. Move them further down and every store stops being
+  found -- which reads as a repository that never opted in.
 - **The index file is generated and byte-stable for stable input.** An index whose order wandered
   would be rewritten whenever an unrelated note changed, which on a synced store is a replication
   and a stored revision for nothing.

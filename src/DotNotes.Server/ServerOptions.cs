@@ -35,6 +35,9 @@ public sealed record ServerOptions
 	/// <summary>A repository whose pending move to dismiss, then exit: its candidates are another repository's.</summary>
 	public string? Dismiss { get; init; }
 
+	/// <summary>A checkout to opt in to committed notes, then exit: the command a repository-scope refusal names.</summary>
+	public string? Init { get; init; }
+
 	/// <summary>One candidate's folder name, narrowing <see cref="Adopt"/> or <see cref="Dismiss"/> to it.</summary>
 	public string? Only { get; init; }
 
@@ -51,7 +54,7 @@ public sealed record ServerOptions
 	/// <summary>The usage line, printed to stderr beside whatever was wrong with the arguments.</summary>
 	public const string Usage =
 		"usage: DotNotes.Server [--mode serve|index] [--scope machine|repository] [--root <dir>] "
-			+ "[--store <path>] [--explain <dir>] [--adopt <dir> | --dismiss <dir>] [--only <folder>]";
+			+ "[--store <path>] [--explain <dir>] [--init <dir>] [--adopt <dir> | --dismiss <dir>] [--only <folder>]";
 
 	/// <exception cref="ArgumentException">An argument is unrecognised, or its value is missing.</exception>
 	public static ServerOptions Parse(string[] args)
@@ -64,6 +67,7 @@ public sealed record ServerOptions
 		string? adopt = null;
 		string? dismiss = null;
 		string? only = null;
+		string? init = null;
 
 		for (var i = 0; i < args.Length; i++)
 		{
@@ -110,6 +114,11 @@ public sealed record ServerOptions
 					dismiss = args[++i];
 					break;
 
+				case "--init":
+					if (i + 1 >= args.Length) throw new ArgumentException("--init requires a directory.");
+					init = args[++i];
+					break;
+
 				case "--only":
 					if (i + 1 >= args.Length) throw new ArgumentException("--only requires a store's folder name.");
 					only = args[++i];
@@ -130,6 +139,7 @@ public sealed record ServerOptions
 			Adopt = adopt,
 			Dismiss = dismiss,
 			Only = only,
+			Init = init,
 		};
 
 		options.Validate();

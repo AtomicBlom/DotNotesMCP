@@ -110,8 +110,8 @@ public sealed class StoreRoutingTests
 	}
 
 	/// <summary>
-	/// The refusal has to name a file in the checkout the caller is in, because that is the one they
-	/// can create. Naming the main checkout's sends them to edit another branch.
+	/// The refusal has to name the checkout the caller is in, because that is the one they can opt
+	/// in. Naming the main checkout sends them to opt in another branch.
 	/// </summary>
 	[Test]
 	public void The_refusal_names_a_file_in_the_checkout_that_asked()
@@ -121,7 +121,7 @@ public sealed class StoreRoutingTests
 
 		var stores = NoteStores.For(worktree, Options(fixture));
 
-		stores.Repo.Unavailable!.ShouldContain(RepositoryConfigFile.PathFor(worktree));
+		stores.Repo.Unavailable!.ShouldContain($"--init \"{worktree}\"");
 	}
 
 	/// <summary>
@@ -137,7 +137,7 @@ public sealed class StoreRoutingTests
 		var stores = NoteStores.For(checkout, Options(fixture));
 
 		stores.Repo.IsAvailable.ShouldBeFalse();
-		stores.Repo.Unavailable!.ShouldContain("dotnotes.json");
+		stores.Repo.Unavailable!.ShouldContain("--init");
 		stores.Machine.IsAvailable.ShouldBeTrue();
 	}
 

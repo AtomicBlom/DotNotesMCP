@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace DotNotes.Notes.Repositories;
@@ -34,9 +35,35 @@ public static class RootCommits
 	private const string InitialCommit = "commit (initial)";
 
 	/// <summary>
-	/// The roots listed by the repository's commit-graph, a single file or a split chain, in no
-	/// particular order and possibly repeated across layers.
+	/// The roots each repository's graph listed, kept while the graph's stamp is unchanged. A large
+	/// repository's graph is megabytes and changes only when git collects, so scanning it on every
+	/// call is the cost of a whole store crawl spent on an answer that has not moved.
 	/// </summary>
+	private static readonly ConcurrentDictionary<string, (string Stamp, IReadOnlyList<string> Roots)> Scanned =
+		new(PathCasing.Comparer);
+
+	/// <summary>
+	/// A repository's roots: the commit-graph's, a single file or a split chain, or where it lists
+	/// none, the reflog's initial commit. Sorted and distinct, so a comparison with what is recorded
+	/// is exact.
+	/// <para>
+	/// The reflog is read only when the graph has nothing. A repository young enough to have no graph
+	/// is the one the reflog is for, and a graph that exists already lists the initial commit.
+	/// </para>
+	/// </summary>
+	public static IReadOnlyList<string> Of(string commonDirectory)
+	{
+		var stamp = GraphStamp(commonDirectory);
+		var graph = Scanned.TryGetValue(commonDirectory, out var scanned) && scanned.Stamp == stamp
+			? scanned.Roots
+			: Scan(commonDirectory, stamp);
+
+		if (graph.Count > 0) return graph;
+
+		return Initial(commonDirectory) is { } initial ? [initial] : [];
+	}
+
+	/// <summary>The roots listed by the repository's commit-graph, possibly repeated across layers.</summary>
 	public static IReadOnlyList<string> InGraph(string commonDirectory)
 	{
 		var roots = new List<string>();
@@ -49,21 +76,37 @@ public static class RootCommits
 		return roots;
 	}
 
+	private static IReadOnlyList<string> Scan(string commonDirectory, string stamp)
+	{
+		IReadOnlyList<string> roots = stamp.Length == 0
+			? []
+			: [.. InGraph(commonDirectory).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+
+		Scanned[commonDirectory] = (stamp, roots);
+
+		return roots;
+	}
+
 	/// <summary>
-	/// A cheap fingerprint of the commit-graph files: their names, lengths and write times. The
-	/// roots are rescanned only when this changes, because the graph of a large repository is
-	/// megabytes and changes only when git collects.
+	/// A cheap fingerprint of the commit-graph: the length and write time of the single file and of
+	/// the chain. A layer is named by its own hash and never rewritten, so a new layer is a new
+	/// chain, and two stats cover the lot. Empty where there is no graph at all.
 	/// </summary>
 	public static string GraphStamp(string commonDirectory)
 	{
+		var info = Path.Combine(commonDirectory, "objects", "info");
+		var single = new FileInfo(Path.Combine(info, "commit-graph"));
+		var chain = new FileInfo(Path.Combine(info, "commit-graphs", "commit-graph-chain"));
+
+		if (!single.Exists && !chain.Exists) return string.Empty;
+
 		var stamp = new StringBuilder();
 
-		foreach (var file in GraphFiles(commonDirectory))
+		foreach (var file in (FileInfo[])[single, chain])
 		{
-			var info = new FileInfo(file);
+			if (file.Exists) stamp.Append(file.Length).Append(':').Append(file.LastWriteTimeUtc.Ticks);
 
-			stamp.Append(info.Name).Append(':').Append(info.Length).Append(':')
-				.Append(info.LastWriteTimeUtc.Ticks).Append(';');
+			stamp.Append(';');
 		}
 
 		return stamp.ToString();

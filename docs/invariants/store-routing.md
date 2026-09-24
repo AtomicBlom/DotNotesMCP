@@ -12,12 +12,17 @@ Read before touching `NoteStores`, a scope, the machine-store path, or the confi
   tracked store keyed to the repository lands notes on whichever branch the main checkout has out,
   in a working tree nobody in the session is looking at. See
   [the decision](../decisions/the-committed-store-follows-the-checkout.md).
-- **Repository scope is available only where the checkout opted in**, by committing
-  `.dotnotes/dotnotes.json`. Without the gate, a server registered once and used everywhere drops an
-  untracked folder into whichever repository happened to be open, on an agent's initiative. The gate
-  is read from the checkout the call came from, because opting in is a commit and a commit happens on
-  a branch -- gating on the main checkout makes creating the file the refusal just named do nothing
-  until it merges.
+- **Repository scope is available only where the checkout opted in**: it has a committed store --
+  a folder holding a generated index, wherever it has been moved -- or a `.dotnotes/dotnotes.json`.
+  Without the gate, a server registered once and used everywhere drops an untracked folder into
+  whichever repository happened to be open, on an agent's initiative. The gate is read from the
+  checkout the call came from, because opting in is a commit and a commit happens on a branch --
+  gating on the main checkout makes running the command the refusal just named do nothing until it
+  merges. See [the decision](../decisions/the-committed-store-is-found-rather-than-configured.md).
+- **A found store beats a configured folder with nothing in it.** That is a store somebody moved
+  without editing the config; writing where the config still points starts a second store beside
+  the real one. With several stores, the nearest enclosing the call's directory wins, and a write
+  with nothing to choose between them refuses rather than picking one.
 - **Only the main checkout's config may name the repository.** The gate and the notes path come from
   the checkout that asked; the name does not. A name that varies by branch is one repository with two
   machine stores, which is the fragmentation this server removes arriving by a different door.

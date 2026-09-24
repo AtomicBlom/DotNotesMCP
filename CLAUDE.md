@@ -120,10 +120,12 @@ Answer what the server would answer, without starting one:
 dotnet run --project src/DotNotes.Server -- --explain .
 ```
 
-Make, or dismiss, the move a pending-move notice names -- nothing moves a store otherwise:
+Make, or dismiss, the move a pending-move notice names -- nothing moves a store otherwise -- and opt
+a checkout in to committed notes:
 
 ```
 dotnet run --project src/DotNotes.Server -- --adopt .     # or --dismiss .   [--only <folder>]
+dotnet run --project src/DotNotes.Server -- --init .
 ```
 
 Release artifacts, which need Inno Setup 6.3 or later:

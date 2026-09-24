@@ -76,6 +76,35 @@ public sealed partial class NoteService
 			$"{Path.GetFileName(candidate)} is no longer offered to {Path.GetFileName(pending.Resolved)}.")];
 	}
 
+	/// <summary>
+	/// Opts a checkout in to committed notes by writing an empty generated index where the notes go.
+	/// A command a person runs, because committing notes into a shared repository is the repository
+	/// owner's decision rather than one an agent makes on first contact.
+	/// </summary>
+	/// <exception cref="McpRefusal">There is no working tree, or the checkout has already opted in.</exception>
+	public IReadOnlyList<string> Init(string directory)
+	{
+		var stores = Stores(directory);
+		var identity = stores.Repository;
+
+		if (!identity.HasWorkingTree) throw new McpRefusal(stores.Repo.Unavailable!);
+
+		var existing = stores.Reading(StoreSelection.Repository).Where(store => store.IsAvailable).ToArray();
+
+		if (existing.Length > 0)
+		{
+			throw new McpRefusal(
+				$"This checkout has already opted in: its committed notes are in {string.Join(", ", existing.Select(store => store.Path))}.");
+		}
+
+		var folder = Path.Combine(identity.Worktree!, CommittedStores.DefaultFolder);
+		var index = Path.Combine(folder, NoteIndexFile.FileName);
+
+		NoteFile.Write(index, NoteIndexFile.Render(identity.Name, []));
+
+		return [$"Created {index}. Commit it, and committed notes are shared with everyone who clones."];
+	}
+
 	/// <summary>The pending move and the candidates a call chose from it.</summary>
 	/// <exception cref="McpRefusal">Nothing is pending, or the named candidate is not one.</exception>
 	private static (PendingMove Pending, IReadOnlyList<string> Chosen) Chosen(NoteStores stores, string? only)

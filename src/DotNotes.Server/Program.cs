@@ -28,25 +28,27 @@ internal static class Program
 
 		if (options.Explain is { Length: > 0 } directory) return Explain(directory, options);
 
-		if (options.Adopt is { Length: > 0 } adopting) return Move(adopting, options, dismiss: false);
+		if (options.Init is { Length: > 0 } opting) return Run(options, service => service.Init(opting));
 
-		if (options.Dismiss is { Length: > 0 } dismissing) return Move(dismissing, options, dismiss: true);
+		if (options.Adopt is { Length: > 0 } adopting) return Run(options, service => service.Adopt(adopting, options.Only));
+
+		if (options.Dismiss is { Length: > 0 } dismissing) return Run(options, service => service.Dismiss(dismissing, options.Only));
 
 		return await ServeAsync(options);
 	}
 
 	/// <summary>
-	/// Makes or dismisses a pending move, then exits. A command a person runs, which is why it writes
-	/// to stdout: there is no protocol stream here to corrupt.
+	/// Runs one command against the stores, prints what it did, then exits. A command a person runs,
+	/// which is why it writes to stdout: there is no protocol stream here to corrupt.
 	/// </summary>
-	private static int Move(string directory, ServerOptions options, bool dismiss)
+	private static int Run(ServerOptions options, Func<NoteService, IReadOnlyList<string>> command)
 	{
 		var notes = options.Notes();
 		var service = new NoteService(notes, new DotNotes.Index.CrawlingNoteSearch(notes));
 
 		try
 		{
-			var lines = dismiss ? service.Dismiss(directory, options.Only) : service.Adopt(directory, options.Only);
+			var lines = command(service);
 
 			foreach (var line in lines) Console.WriteLine(line);
 
@@ -133,7 +135,10 @@ internal static class Program
 		Console.WriteLine($"  machine    {Describe(stores.Machine)}");
 		Console.WriteLine($"  repository {Describe(stores.Repo)}");
 
-		foreach (var also in stores.Also) Console.WriteLine($"  also read  {also.Path}");
+		foreach (var also in stores.Also)
+		{
+			Console.WriteLine($"  also read  {also.Path}  ({also.Scope.ToString().ToLowerInvariant()})");
+		}
 
 		if (stores.Pending is { } pending)
 		{

@@ -27,6 +27,10 @@ repository nobody has written notes for.
   not.** A folder name means something only on this machine, so two unrelated directories called
   `tools` must not share a store. A remote means the same thing everywhere, so two clones of one
   repository must.
+- **Outside git, a config file declares a repository, and must name it.** A Perforce workspace has
+  no `.git`, so `.dotnotes/dotnotes.json` above the directory is what makes it a repository at all.
+  The chain has nothing else to fall back to but a hash of the path, which is what moving the
+  workspace changes, so a config that names nothing refuses.
 - **Nothing runs `git`.** Every call needs an identity, a process launch costs more than the reads
   it replaces, `git` need not be on the PATH of a server an editor started, and a child process
   would move the most important table in this repository out of the fast suite.
@@ -46,6 +50,10 @@ repository nobody has written notes for.
   ability to notice a move and nothing else. A remembered answer that could go stale is exactly the
   cache the rule above removed. See
   [the decision](../decisions/a-renamed-repository-keeps-its-notes-until-the-move-is-made.md).
+- **A parse kept against its file's stamp is not a remembered answer.** `GitIndex`, `RootCommits` and
+  `CommittedStores` keep what they read until the length or write time of the file it came from
+  changes, the same rule the search index is kept by. The rule above forbids an answer that outlives
+  the change to what it describes; one keyed to that file's stamp cannot.
 - **Root commits are a set, and are evidence rather than a key.** A monorepo has one per repository
   merged into it, a fork shares its upstream's, and a repository has none before its first commit.
   Matching is by intersection; treating them as one value misses the monorepo, and keying on them

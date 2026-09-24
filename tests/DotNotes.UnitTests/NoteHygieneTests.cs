@@ -173,7 +173,7 @@ public sealed class NoteHygieneTests
 		Write(harness, "one", "Body.");
 
 		Should.Throw<McpRefusal>(() => harness.Service.Move("one", null, "repository"))
-			.Message.ShouldContain("dotnotes.json");
+			.Message.ShouldContain("--init");
 	}
 
 	[Test]

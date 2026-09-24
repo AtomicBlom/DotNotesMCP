@@ -62,8 +62,9 @@ public sealed record NoteStores
 		var (root, source) = MachineRootFrom(options, settings);
 		var machine = MachineStore(identity, root, source);
 		var evidence = RepositoryEvidence.Read(options.LocalAppData);
-		var roots = identity.CommonDirectory is { Length: > 0 } common ? evidence.RootsOf(common) : [];
+		var roots = identity.CommonDirectory is { Length: > 0 } common ? RootCommits.Of(common) : [];
 		var (written, also, pending) = Route(machine, root, identity, evidence, roots);
+		var (repo, alongside) = RepositoryStores(identity);
 
 		return new NoteStores
 		{
@@ -72,8 +73,8 @@ public sealed record NoteStores
 			MachineRootSource = source,
 			MachineName = Configuration.MachineName.Of(settings, options),
 			Machine = written,
-			Repo = RepositoryStore(identity),
-			Also = also,
+			Repo = repo,
+			Also = [.. also, .. alongside],
 			Pending = pending,
 			Roots = roots,
 			Evidence = evidence,
@@ -83,17 +84,25 @@ public sealed record NoteStores
 	/// <summary>The store a scope names, whether or not it can be used.</summary>
 	public NoteStore this[NoteScope scope] => scope == NoteScope.Repository ? Repo : Machine;
 
-	/// <summary>Every store a read of this selection covers: the machine store, what it is read with, then the committed one.</summary>
+	/// <summary>
+	/// Every store a read of this selection covers: the one each scope writes to, then the ones read
+	/// with it.
+	/// </summary>
 	public IEnumerable<NoteStore> Reading(StoreSelection selection)
 	{
-		if (selection != StoreSelection.Repository)
+		var scopes = selection switch
 		{
-			yield return Machine;
+			StoreSelection.Machine => new[] { NoteScope.Machine },
+			StoreSelection.Repository => [NoteScope.Repository],
+			_ => [NoteScope.Machine, NoteScope.Repository],
+		};
 
-			foreach (var store in Also) yield return store;
+		foreach (var scope in scopes)
+		{
+			yield return this[scope];
+
+			foreach (var store in Also.Where(store => store.Scope == scope)) yield return store;
 		}
-
-		if (selection != StoreSelection.Machine) yield return Repo;
 	}
 
 	/// <summary>
@@ -202,7 +211,14 @@ public sealed record NoteStores
 	}
 
 	/// <summary>
-	/// The committed store, which exists only where the checkout has opted in.
+	/// The committed store a write goes to, and the other committed stores in this checkout, which are
+	/// read with it. Available only where the checkout has opted in.
+	/// <para>
+	/// Opting in is having a committed store -- a folder holding a generated index, wherever somebody
+	/// moved it -- or a config file saying where one goes. A committed DotNotes index is somebody
+	/// having already decided to commit notes, and asking for a config file as well is the same
+	/// consent twice. See <c>docs/decisions/the-committed-store-is-found-rather-than-configured.md</c>.
+	/// </para>
 	/// <para>
 	/// It lives in the working tree the call came from, not in the main checkout. A committed note
 	/// is a tracked file: it belongs to the branch that learned the fact, is reviewed with the
@@ -218,7 +234,7 @@ public sealed record NoteStores
 	/// drops an untracked folder into whichever repository happened to be open.
 	/// </para>
 	/// </summary>
-	private static NoteStore RepositoryStore(RepositoryIdentity identity)
+	private static (NoteStore Repo, IReadOnlyList<NoteStore> Alongside) RepositoryStores(RepositoryIdentity identity)
 	{
 		if (!identity.HasWorkingTree)
 		{
@@ -227,29 +243,56 @@ public sealed record NoteStores
 				: $"{identity.Origin} is not in a git repository, so there is nothing to commit a note to. "
 					+ "Run git init, or use machine scope.";
 
-			return NoteStore.Refused(NoteScope.Repository, string.Empty, because);
+			return (NoteStore.Refused(NoteScope.Repository, string.Empty, because), []);
 		}
 
 		var worktree = identity.Worktree!;
-
-		if (identity.Config is not { } config)
-		{
-			return NoteStore.Refused(
-				NoteScope.Repository,
-				Path.Combine(worktree, RepositoryConfigFile.DirectoryName, "notes"),
-				$"This checkout has not opted in to committed notes. Create "
-					+ $"{RepositoryConfigFile.PathFor(worktree)} containing "
-					+ $$"""{"repository": "{{identity.Name}}"}""" + " and commit it. Until then, use machine scope.");
-		}
+		var found = CommittedStores.Found(identity);
 
 		// Relative to the config file, so a repository that wants its notes somewhere else says so
 		// once and every clone agrees. Nothing overrides it per machine: a repository store at a
 		// path that differs per machine is not a repository store. The config is this checkout's, so
 		// the path this resolves to is inside this working tree.
-		var configured = Path.Combine(Path.GetDirectoryName(config.Path!)!, config.Notes);
+		var configured = CommittedStores.Configured(identity);
 
-		return NoteStore.Available(NoteScope.Repository, CanonicalPath.Of(configured));
+		if (found.Count == 0 && configured is null)
+		{
+			var fallback = Path.Combine(worktree, CommittedStores.DefaultFolder);
+
+			return (
+				NoteStore.Refused(
+					NoteScope.Repository,
+					fallback,
+					$"This checkout has not opted in to committed notes. Run {Command} --init \"{worktree}\" "
+						+ "and commit what it makes. Until then, use machine scope."),
+				[]);
+		}
+
+		var target = CommittedStores.WriteTarget(found, identity.Origin, configured);
+		var others = found.Where(store => !PathCasing.Comparer.Equals(store, target))
+			.Select(store => NoteStore.Available(NoteScope.Repository, store))
+			.ToArray();
+
+		if (target is null)
+		{
+			var refused = NoteStore.Refused(
+				NoteScope.Repository,
+				string.Empty,
+				$"This checkout has committed notes in {string.Join(", ", found)}, and {identity.Origin} is "
+					+ "inside none of them, so a write has nowhere obvious to go. Work from inside one, or "
+					+ $"name one as \"notes\" in {RepositoryConfigFile.PathFor(worktree)}.");
+
+			return (refused, others);
+		}
+
+		return (NoteStore.Available(NoteScope.Repository, target), others);
 	}
+
+	/// <summary>
+	/// This program as a person would run it, for a refusal that names a command. The process's own
+	/// path, because a refusal naming a program the reader cannot find fixes nothing.
+	/// </summary>
+	public static string Command => $"\"{Environment.ProcessPath ?? "DotNotes.Server"}\"";
 
 	private static string Describe(MachineStoreSource source) => source switch
 	{

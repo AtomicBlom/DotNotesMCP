@@ -43,6 +43,12 @@ public sealed record RepositoryIdentity
 	/// <summary>What <c>git rev-parse --git-common-dir</c> answers, reached through <c>commondir</c>.</summary>
 	public string? CommonDirectory { get; init; }
 
+	/// <summary>
+	/// This checkout's own git directory, which holds its index. A linked worktree's is under the main
+	/// repository's <c>worktrees</c> folder, because each worktree stages its own changes.
+	/// </summary>
+	public string? GitDirectory { get; init; }
+
 	/// <summary>The origin remote folded to <c>host/path</c>, or null where there is none to fold.</summary>
 	public string? Remote { get; init; }
 
@@ -111,7 +117,7 @@ public sealed record RepositoryIdentity
 	{
 		var layout = GitLayout.Find(origin);
 
-		if (layout is null) return Outside(origin);
+		if (layout is null) return Declared(origin) ?? Outside(origin);
 
 		var config = RepositoryConfigFile.Read(layout.Worktree);
 		var naming = NamingConfigFor(layout, config);
@@ -125,6 +131,7 @@ public sealed record RepositoryIdentity
 			Worktree = layout.Worktree,
 			Root = layout.Root,
 			CommonDirectory = layout.CommonDirectory,
+			GitDirectory = layout.GitDirectory,
 			Remote = remote,
 			Name = name,
 			Key = namedBy == RepositoryNameSource.DirectoryName ? Unique(name, layout.Root ?? origin) : name,
@@ -142,6 +149,54 @@ public sealed record RepositoryIdentity
 	/// <exception cref="DotNotesConfigurationException">The main checkout's config is there and malformed.</exception>
 	private static RepositoryConfigFile? NamingConfigFor(GitLayout layout, RepositoryConfigFile? config) =>
 		layout.Kind == RepositoryKind.LinkedWorktree ? RepositoryConfigFile.Read(layout.Root) : config;
+
+	/// <summary>
+	/// A repository git does not know about, declared by a <c>.dotnotes/dotnotes.json</c> in this
+	/// directory or one above it -- or null where there is none.
+	/// <para>
+	/// The name is required here. Inside git the chain can fall back to a remote or a folder; out here
+	/// the only thing left to key on is a hash of the path, which is exactly what moving the workspace
+	/// changes, so a config that names nothing refuses and says what to add.
+	/// </para>
+	/// </summary>
+	/// <exception cref="DotNotesConfigurationException">The config is malformed or names no repository.</exception>
+	private static RepositoryIdentity? Declared(string origin)
+	{
+		for (var directory = new DirectoryInfo(origin); directory is not null; directory = directory.Parent)
+		{
+			if (RepositoryConfigFile.Read(directory.FullName) is not { } config) continue;
+
+			if (config.Repository is not { Length: > 0 } named)
+			{
+				throw new DotNotesConfigurationException(
+					config.Path!,
+					new InvalidDataException(
+						"Outside git, this file is what names the repository, so it needs "
+							+ """{"repository": "<name>"}. Without one, its notes would be keyed to a path."""));
+			}
+
+			var root = CanonicalPath.Of(directory.FullName);
+			var name = Slug.Of(named);
+
+			return new RepositoryIdentity
+			{
+				Origin = origin,
+				Kind = RepositoryKind.Configured,
+				Worktree = root,
+				Root = root,
+				CommonDirectory = null,
+				GitDirectory = null,
+				Remote = null,
+				Name = name,
+				Key = name,
+				NamedBy = RepositoryNameSource.ConfiguredName,
+				Config = config,
+				NamingConfig = config,
+			};
+		}
+
+		return null;
+	}
 
 	/// <summary>
 	/// A directory with no git above it. It still gets a name, because machine-scope notes are filed

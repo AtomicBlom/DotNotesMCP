@@ -356,7 +356,7 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 	/// <exception cref="McpRefusal">The name is taken in a store read alongside this one.</exception>
 	private static void Unsplit(NoteStores stores, string slug)
 	{
-		foreach (var other in stores.Also)
+		foreach (var other in stores.Also.Where(store => store.Scope == NoteScope.Machine))
 		{
 			if (!File.Exists(Path.Combine(other.Path, $"{slug}.md"))) continue;
 
@@ -366,12 +366,9 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 		}
 	}
 
-	/// <summary>
-	/// The command that makes a pending move, as a person or an agent would type it. The process's
-	/// own path, because the notice is useless if it names a program the reader cannot find.
-	/// </summary>
+	/// <summary>The command that makes a pending move, as a person or an agent would type it.</summary>
 	private static string AdoptCommand(NoteStores stores) =>
-		$"\"{Environment.ProcessPath ?? "DotNotes.Server"}\" --adopt \"{stores.Repository.Origin}\"";
+		$"{NoteStores.Command} --adopt \"{stores.Repository.Origin}\"";
 
 	/// <summary>
 	/// Fills in which repository answered, at the one point every result passes through.

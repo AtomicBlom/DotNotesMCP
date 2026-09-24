@@ -91,7 +91,7 @@ public sealed record NoteContextResult : NoteResult
 	/// <summary>The directory that was resolved.</summary>
 	public required string Directory { get; init; }
 
-	/// <summary>Checkout, LinkedWorktree, Submodule, Bare, or NoRepository.</summary>
+	/// <summary>Checkout, LinkedWorktree, Submodule, Bare, Configured, or NoRepository.</summary>
 	public required string Kind { get; init; }
 
 	/// <summary>The checkout this call is inside, and where its committed notes go.</summary>

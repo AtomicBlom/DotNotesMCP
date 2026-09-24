@@ -180,7 +180,7 @@ public sealed class NoteServiceTests
 
 		var result = harness.Service.Search(null, null, null, null, 10);
 
-		result.Notices.ShouldContain(notice => notice.Contains("dotnotes.json", StringComparison.Ordinal));
+		result.Notices.ShouldContain(notice => notice.Contains("--init", StringComparison.Ordinal));
 	}
 
 	/// <summary>The context tool is what makes the premise visible: the worktree and the root differ.</summary>

@@ -99,7 +99,7 @@ public sealed class NoteWriteTests
 
 		Should.Throw<McpRefusal>(
 				() => harness.Service.Write("one", "First", "Body.", "repository", null, null, null, null))
-			.Message.ShouldContain("dotnotes.json");
+			.Message.ShouldContain("--init");
 
 		Directory.Exists(Path.Combine(harness.Checkout, ".dotnotes", "notes")).ShouldBeFalse();
 	}
