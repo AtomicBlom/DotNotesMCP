@@ -8,6 +8,7 @@ dotnotes-generated: true
 - [[check-store-routing-with-a-throwaway-worktree]] — A detached worktree plus --explain is the only way to see which store a linked worktree actually resolves to
 - [[deploy-keeps-binaries-out-of-the-notes-folder]] — The install goes in a bin subfolder because the product folder also holds settings, locks and the notes.
 - [[ide0005-can-disagree-with-the-compiler]] — IDE0005 can name the wrong using directive; the compiler decides which one is unused.
+- [[measure-resolution-with-a-file-based-script]] — A dotnet run file-based script with #:project times NoteStores.For in-process; --explain timings are all process startup
 - [[nothing-about-the-filesystem-is-cached-between-calls]] — Repository identity is resolved fresh every call, because git init and the opt-in config both happen while a session is open
 - [[the-two-stores-answer-to-different-things]] — The machine store is keyed to the repository so a deleted worktree cannot take notes with it; the committed store follows the checkout so notes travel with the branch
 - [[this-server-is-compiled-ahead-of-time]] — AOT analysers are on for every project but the tests, so reflection-based JSON or YAML fails the ordinary build
