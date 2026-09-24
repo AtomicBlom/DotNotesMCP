@@ -40,7 +40,7 @@ public sealed class NoteWriteTests
 		};
 
 		var store = Path.Combine(
-			MachineSettingsFile.DirectoryFor(options.LocalAppData), "notes", "rosemcp");
+			MachineSettingsFile.DirectoryFor(options.LocalAppData), "notes", optIn ? "rosemcp" : "atomicblom-rosemcp");
 
 		return new Harness(
 			new NoteService(options, new CrawlingNoteSearch(options)), checkout, store, fixture);

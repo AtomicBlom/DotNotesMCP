@@ -119,11 +119,18 @@ public sealed record RepositoryEvidence
 	/// <param name="machineRoot">The root the stores are folders of. A store under another root is not reachable from this configuration.</param>
 	/// <param name="identity">The repository asking.</param>
 	/// <param name="roots">Its roots, from <see cref="RootCommits.Of"/>.</param>
+	/// <param name="shortName">
+	/// The folder the repository's name alone would be, where that is not its key: <c>rosemcp</c>
+	/// beside <c>atomicblom-rosemcp</c>. A store there is offered whether or not anything was recorded
+	/// of it, because a remote-named repository's notes are under its short name wherever they were
+	/// written by a server that keyed on the last segment.
+	/// </param>
 	public IReadOnlyList<MoveCandidate> CandidatesFor(
 		string resolved,
 		string machineRoot,
 		RepositoryIdentity identity,
-		IReadOnlyList<string> roots)
+		IReadOnlyList<string> roots,
+		string? shortName = null)
 	{
 		if (identity.CommonDirectory is not { Length: > 0 } common) return [];
 
@@ -145,16 +152,32 @@ public sealed record RepositoryEvidence
 			var path = Path.Combine(machineRoot, Path.GetFileName(key));
 			if (!Directory.Exists(path)) continue;
 
-			// Only one kind of match leaves no other owner for the store: the same git directory, or
-			// roots whose every recorded checkout is gone. A fork's upstream shares its roots and is
-			// still on disk, and that is a store to read from, never one to write into.
-			var unambiguous = byDirectory || sighting.Repositories.All(repository => !Directory.Exists(repository));
+			candidates.Add(new MoveCandidate { Path = path, Unambiguous = Unowned(sighting, common) });
+		}
 
-			candidates.Add(new MoveCandidate { Path = path, Unambiguous = unambiguous });
+		if (shortName is { Length: > 0 } && Path.Combine(machineRoot, shortName) is var named
+			&& Directory.Exists(named)
+			&& PathCasing.Fold(named) != own
+			&& !dismissed.Contains(PathCasing.Fold(named), PathCasing.Comparer)
+			&& !candidates.Any(candidate => PathCasing.Comparer.Equals(candidate.Path, named)))
+		{
+			var sighting = Stores.GetValueOrDefault(PathCasing.Fold(named));
+
+			candidates.Add(new MoveCandidate { Path = named, Unambiguous = sighting is null || Unowned(sighting, common) });
 		}
 
 		return [.. candidates.OrderBy(candidate => candidate.Path, StringComparer.Ordinal)];
 	}
+
+	/// <summary>
+	/// Whether nothing but this repository can own a store: every other checkout it was seen with is
+	/// gone. A fork's upstream shares its roots and is still on disk, and so are both halves of two
+	/// repositories that once shared a short name; each of those is a store to read from, never one to
+	/// write into.
+	/// </summary>
+	private static bool Unowned(StoreSighting sighting, string common) =>
+		sighting.Repositories.All(repository =>
+			PathCasing.Comparer.Equals(repository, common) || !Directory.Exists(repository));
 
 	/// <summary>Folds what one store has seen into another, which is what an adoption does to the evidence.</summary>
 	public void Merge(string from, string into)

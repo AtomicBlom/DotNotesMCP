@@ -23,10 +23,16 @@ repository nobody has written notes for.
 - **Every path is folded before it is compared or hashed.** A drive letter is case-insensitive on
   Windows and a path-encoded directory name is not, which is why `D--Contoso-Platform` and
   `d--Contoso-Platform` are two stores for one repository in the memory this replaces.
-- **A name from a folder carries a hash of its path; a name from a config file or a remote does
-  not.** A folder name means something only on this machine, so two unrelated directories called
-  `tools` must not share a store. A remote means the same thing everywhere, so two clones of one
-  repository must.
+- **A name from a folder carries a hash of its path; a name from a remote is keyed by the remote's
+  whole path; a configured name is the key as written.** A folder name means something only on this
+  machine, so two unrelated directories called `tools` must not share a store. A remote means the
+  same thing everywhere, so two clones of one repository must -- but its last segment does not, so
+  `a/tools` and `b/tools` key as `a-tools` and `b-tools` while both are *named* `tools`. The host is
+  left out of the key, because a person reads that folder name in their vault.
+- **A store under the short name is offered as a pending move.** A remote-named repository's notes
+  are under its last segment wherever a server keyed on it, with nothing recorded about that store,
+  so `rosemcp` is a candidate for `atomicblom-rosemcp` without evidence. It is written to only while
+  no other existing checkout has been seen using it.
 - **Outside git, a config file declares a repository, and must name it.** A Perforce workspace has
   no `.git`, so `.dotnotes/dotnotes.json` above the directory is what makes it a repository at all.
   The chain has nothing else to fall back to but a hash of the path, which is what moving the

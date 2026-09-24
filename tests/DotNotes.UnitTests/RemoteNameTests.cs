@@ -61,4 +61,13 @@ public sealed class RemoteNameTests
 	[Arguments(null, null)]
 	public void The_last_segment_is_what_a_repository_is_called(string? normalised, string? expected) =>
 		RemoteName.LastSegment(normalised).ShouldBe(expected);
+
+	/// <summary>The path after the host is what a remote-named repository is keyed by, however deep it goes.</summary>
+	[Test]
+	[Arguments("github.com/atomicblom/rosemcp", "atomicblom/rosemcp")]
+	[Arguments("gitlab.com/group/sub/project", "group/sub/project")]
+	[Arguments("github.com", null)]
+	[Arguments(null, null)]
+	public void The_path_is_everything_after_the_host(string? normalised, string? expected) =>
+		RemoteName.PathOf(normalised).ShouldBe(expected);
 }

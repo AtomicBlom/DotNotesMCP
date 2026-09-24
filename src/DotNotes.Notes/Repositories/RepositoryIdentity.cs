@@ -56,9 +56,11 @@ public sealed record RepositoryIdentity
 	public required string Name { get; init; }
 
 	/// <summary>
-	/// The name, made unique across this machine. Equal to <see cref="Name"/> unless the name came
-	/// from a directory, in which case it carries a hash of the path -- a folder name means
-	/// something only here, and two unrelated directories called <c>tools</c> must not share a store.
+	/// The name, made unique across this machine: the folder machine notes are filed under. A name
+	/// from a directory carries a hash of the path, because a folder name means something only here.
+	/// A name from a remote is keyed by the remote's whole path -- <c>atomicblom-rosemcp</c> -- because
+	/// <c>a/tools</c> and <c>b/tools</c> are two repositories that share a last segment. A configured
+	/// name is the key as written, because a person chose it.
 	/// </summary>
 	public required string Key { get; init; }
 
@@ -134,7 +136,12 @@ public sealed record RepositoryIdentity
 			GitDirectory = layout.GitDirectory,
 			Remote = remote,
 			Name = name,
-			Key = namedBy == RepositoryNameSource.DirectoryName ? Unique(name, layout.Root ?? origin) : name,
+			Key = namedBy switch
+			{
+				RepositoryNameSource.DirectoryName => Unique(name, layout.Root ?? origin),
+				RepositoryNameSource.OriginRemote => Slug.Of(RemoteName.PathOf(remote)),
+				_ => name,
+			},
 			NamedBy = namedBy,
 			Config = config,
 			NamingConfig = naming,

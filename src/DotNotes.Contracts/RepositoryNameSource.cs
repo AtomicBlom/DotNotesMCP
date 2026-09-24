@@ -13,7 +13,10 @@ public enum RepositoryNameSource
 	/// </summary>
 	ConfiguredName,
 
-	/// <summary>The last segment of the origin remote, folded.</summary>
+	/// <summary>
+	/// The origin remote, folded: named by its last segment, keyed by its whole path, so a fork and
+	/// its upstream, or two owners' repositories of one name, keep two stores.
+	/// </summary>
 	OriginRemote,
 
 	/// <summary>

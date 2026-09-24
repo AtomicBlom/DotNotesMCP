@@ -51,6 +51,23 @@ public static class RemoteName
 	}
 
 	/// <summary>
+	/// Everything of a folded remote after its host: <c>atomicblom/rosemcp</c>, or
+	/// <c>group/sub/project</c>. What a remote-named repository is keyed by, because the last segment
+	/// alone is shared by every fork and every unrelated repository with the same name -- two clones of
+	/// <c>a/tools</c> and <c>b/tools</c> filing into one store is the fragmentation this server
+	/// removes, run backwards. The host is left out: the same owner and name on two hosts is rare, and
+	/// a folder named for it is one a person has to read in their vault.
+	/// </summary>
+	public static string? PathOf(string? normalised)
+	{
+		if (normalised is not { Length: > 0 }) return null;
+
+		var slash = normalised.IndexOf('/');
+
+		return slash >= 0 && slash < normalised.Length - 1 ? normalised[(slash + 1)..] : null;
+	}
+
+	/// <summary>
 	/// Whether a remote names a place on a filesystem rather than a host. A Windows drive is the
 	/// case that matters, because <c>D:\mirrors\x.git</c> reads exactly like the <c>host:path</c>
 	/// form an ssh remote uses, and a one-letter host is the tell.

@@ -35,7 +35,7 @@ public sealed class StoreRoutingTests
 		var stores = NoteStores.For(checkout, Options(fixture));
 
 		stores.Machine.IsAvailable.ShouldBeTrue();
-		Path.GetFileName(stores.Machine.Path).ShouldBe("rosemcp");
+		Path.GetFileName(stores.Machine.Path).ShouldBe("atomicblom-rosemcp");
 	}
 
 	/// <summary>

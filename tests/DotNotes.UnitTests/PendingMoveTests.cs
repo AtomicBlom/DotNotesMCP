@@ -68,12 +68,12 @@ public sealed class PendingMoveTests
 		var search = service.Search(null, null, null, null, 10);
 
 		search.Matches.Select(match => match.Note.Name).ShouldBe(["build-quirk"]);
-		search.Notices.ShouldContain(notice => notice.Contains("--adopt") && notice.Contains("'widget'"));
+		search.Notices.ShouldContain(notice => notice.Contains("--adopt") && notice.Contains("'atomicblom-widget'"));
 
 		Remember(service, "second-quirk");
 
 		File.Exists(Path.Combine(before, "second-quirk.md")).ShouldBeTrue();
-		Directory.Exists(Path.Combine(harness.MachineRoot, "widget")).ShouldBeFalse();
+		Directory.Exists(Path.Combine(harness.MachineRoot, "atomicblom-widget")).ShouldBeFalse();
 	}
 
 	[Test]
@@ -91,7 +91,7 @@ public sealed class PendingMoveTests
 
 		after.Matches.Select(match => match.Note.Name).ShouldBe(["build-quirk"]);
 		after.Notices.ShouldNotContain(notice => notice.Contains("--adopt"));
-		File.Exists(Path.Combine(harness.MachineRoot, "widget", "build-quirk.md")).ShouldBeTrue();
+		File.Exists(Path.Combine(harness.MachineRoot, "atomicblom-widget", "build-quirk.md")).ShouldBeTrue();
 		harness.Stores(checkout).Pending.ShouldBeNull();
 	}
 
@@ -145,8 +145,8 @@ public sealed class PendingMoveTests
 
 		Remember(service, "fork-quirk");
 
-		File.Exists(Path.Combine(harness.MachineRoot, "widgetfork", "fork-quirk.md")).ShouldBeTrue();
-		File.Exists(Path.Combine(harness.MachineRoot, "widget", "fork-quirk.md")).ShouldBeFalse();
+		File.Exists(Path.Combine(harness.MachineRoot, "someone-widgetfork", "fork-quirk.md")).ShouldBeTrue();
+		File.Exists(Path.Combine(harness.MachineRoot, "atomicblom-widget", "fork-quirk.md")).ShouldBeFalse();
 	}
 
 	[Test]
@@ -195,8 +195,8 @@ public sealed class PendingMoveTests
 
 		service.Adopt(monorepo);
 
-		Directory.EnumerateFiles(Path.Combine(harness.MachineRoot, "platform"), "*-quirk.md").Count().ShouldBe(3);
-		Directory.Exists(Path.Combine(harness.MachineRoot, "api")).ShouldBeFalse();
+		Directory.EnumerateFiles(Path.Combine(harness.MachineRoot, "atomicblom-platform"), "*-quirk.md").Count().ShouldBe(3);
+		Directory.Exists(Path.Combine(harness.MachineRoot, "atomicblom-api")).ShouldBeFalse();
 		harness.Stores(monorepo).Pending.ShouldBeNull();
 	}
 
@@ -225,9 +225,9 @@ public sealed class PendingMoveTests
 
 		Should.Throw<McpRefusal>(() => harness.Service(monorepo).Adopt(monorepo)).Message.ShouldContain("shared.md");
 
-		File.Exists(Path.Combine(harness.MachineRoot, "api", "shared.md")).ShouldBeTrue();
-		File.Exists(Path.Combine(harness.MachineRoot, "web", "shared.md")).ShouldBeTrue();
-		Directory.Exists(Path.Combine(harness.MachineRoot, "platform")).ShouldBeFalse();
+		File.Exists(Path.Combine(harness.MachineRoot, "atomicblom-api", "shared.md")).ShouldBeTrue();
+		File.Exists(Path.Combine(harness.MachineRoot, "atomicblom-web", "shared.md")).ShouldBeTrue();
+		Directory.Exists(Path.Combine(harness.MachineRoot, "atomicblom-platform")).ShouldBeFalse();
 	}
 
 	/// <summary>Writing a name that is already a note in a store waiting to move would split it in two.</summary>
@@ -263,6 +263,52 @@ public sealed class PendingMoveTests
 
 		service.Search(null, null, null, null, 10).Notices.ShouldContain(notice => notice.Contains(RepositoryEvidence.FileName));
 		File.ReadAllText(evidence).ShouldBe("{ not json");
+	}
+
+	/// <summary>
+	/// A remote-named repository's notes are under its short name wherever a server that keyed on the
+	/// last segment wrote them, with nothing recorded about that store. It is found anyway, written to
+	/// while nothing else claims it, and renamed on adoption.
+	/// </summary>
+	[Test]
+	public void A_store_under_the_short_name_is_found_and_adopted()
+	{
+		using var harness = new Harness();
+		var checkout = harness.Fixture.Checkout("RoseMCP");
+		var shortName = GitFixture.Under(harness.MachineRoot, "rosemcp");
+
+		File.WriteAllText(Path.Combine(shortName, "quirk.md"), "---\nname: quirk\ndescription: A quirk\n---\nBody.\n");
+
+		var stores = harness.Stores(checkout);
+
+		stores.Pending!.Redirected.ShouldBeTrue();
+		stores.Machine.Path.ShouldBe(shortName);
+
+		harness.Service(checkout).Adopt(checkout);
+
+		File.Exists(Path.Combine(harness.MachineRoot, "atomicblom-rosemcp", "quirk.md")).ShouldBeTrue();
+		harness.Stores(checkout).Pending.ShouldBeNull();
+	}
+
+	/// <summary>
+	/// Two repositories that shared a short name both see that store. Once one has been seen using it,
+	/// it is the other's to read and never to write, which keeps two repositories out of one store.
+	/// </summary>
+	[Test]
+	public void A_short_name_store_another_repository_uses_is_only_read()
+	{
+		using var harness = new Harness();
+		var mine = harness.Fixture.Checkout("mine", "https://github.com/AtomicBlom/tools.git");
+		var theirs = harness.Fixture.Checkout("theirs", "https://github.com/someone/tools.git");
+
+		GitFixture.Under(harness.MachineRoot, "tools");
+		Remember(harness.Service(mine), "mine-quirk");
+
+		var stores = harness.Stores(theirs);
+
+		stores.Pending!.Redirected.ShouldBeFalse();
+		Path.GetFileName(stores.Machine.Path).ShouldBe("someone-tools");
+		harness.Service(theirs).Search(null, null, null, null, 10).Matches.Select(match => match.Note.Name).ShouldBe(["mine-quirk"]);
 	}
 
 	/// <summary>A key with no store has nothing to be found again, so looking at it records nothing.</summary>

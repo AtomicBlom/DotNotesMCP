@@ -128,7 +128,10 @@ public sealed record NoteStores
 
 		if (!machine.IsAvailable || outside) return (machine, [], null);
 
-		var candidates = evidence.CandidatesFor(machine.Path, root, identity, roots);
+		var shortName = identity.NamedBy == RepositoryNameSource.OriginRemote && identity.Name != identity.Key
+			? identity.Name
+			: null;
+		var candidates = evidence.CandidatesFor(machine.Path, root, identity, roots, shortName);
 
 		if (candidates.Count == 0) return (machine, [], null);
 

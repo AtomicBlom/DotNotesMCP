@@ -36,7 +36,7 @@ public sealed class NoteServiceTests
 
 
 		var store = GitFixture.Under(
-			MachineSettingsFile.DirectoryFor(options.LocalAppData), "notes", "rosemcp");
+			MachineSettingsFile.DirectoryFor(options.LocalAppData), "notes", "atomicblom-rosemcp");
 
 		foreach (var (name, content) in notes)
 		{
@@ -139,9 +139,9 @@ public sealed class NoteServiceTests
 	{
 		using var harness = Create(("one", Note("one", "First", "Body with a [[two]] link.")));
 
-		harness.Service.Search(null, null, null, null, 10).Repository.ShouldBe("rosemcp");
-		harness.Service.Read("one", null).Repository.ShouldBe("rosemcp");
-		harness.Service.Context(null).Repository.ShouldBe("rosemcp");
+		harness.Service.Search(null, null, null, null, 10).Repository.ShouldBe("atomicblom-rosemcp");
+		harness.Service.Read("one", null).Repository.ShouldBe("atomicblom-rosemcp");
+		harness.Service.Context(null).Repository.ShouldBe("atomicblom-rosemcp");
 	}
 
 	[Test]

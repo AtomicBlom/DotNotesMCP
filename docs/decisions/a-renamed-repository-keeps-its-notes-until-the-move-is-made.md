@@ -40,8 +40,8 @@ evidence is wrong beyond a hit attributed plainly to the store it came from, so 
 to read, and the move waits for someone to make it.
 
 **Where a write goes while a move is pending.** To the resolved key's store if it exists. Otherwise
-to the evidenced store, when there is exactly one and nothing else can own it -- it was seen with
-this very git directory, or every checkout it was seen with is gone -- so that the pending move stays
+to the evidenced store, when there is exactly one and nothing else can own it -- every checkout it was
+seen with, other than this one, is gone -- so that the pending move stays
 a rename rather than becoming a merge. Otherwise to the resolved key's store, created as it would be
 anyway. A fork's upstream fails that test while its checkout is still here, which is what keeps a
 fork's notes out of its upstream's store. A machine write to a name that is already a note in a store
@@ -60,6 +60,13 @@ either to one candidate. Both take the store lock of every store they touch, in 
 rather than a tool, because it runs once per rename and a tool's description is paid for by every
 session; the notice names the command with this process's own path, and an agent can run it or
 pass it on.
+
+**The same path serves a change of keying.** A remote-named repository is keyed by its remote's
+whole path -- `atomicblom-rosemcp` -- because the last segment alone let `a/tools` and `b/tools` share
+a store. Every store under a short name then belongs to a key that no longer names it, and nothing
+was recorded about it. So the folder the short name would be is offered as a candidate without
+evidence, and is written to only while no other existing checkout has been seen using it: the first
+repository to use it recognises it, and the second, if two shared one name, reads it and is told.
 
 **Where the evidence lives.** `%LOCALAPPDATA%\BinaryVibrance\DotNotes\repositories.json`, beside the
 settings and the locks. Not in the repository, because it describes this machine. Not in the machine

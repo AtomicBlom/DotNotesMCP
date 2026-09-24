@@ -28,7 +28,7 @@ public sealed class RepositoryIdentityTests
 		identity.Root.ShouldBe(checkout);
 		identity.Remote.ShouldBe("github.com/atomicblom/rosemcp");
 		identity.Name.ShouldBe("rosemcp");
-		identity.Key.ShouldBe("rosemcp");
+		identity.Key.ShouldBe("atomicblom-rosemcp");
 		identity.NamedBy.ShouldBe(RepositoryNameSource.OriginRemote);
 	}
 
@@ -66,7 +66,7 @@ public sealed class RepositoryIdentityTests
 
 		var keys = worktrees.Select(worktree => RepositoryIdentity.For(worktree).Key).Distinct().ToArray();
 
-		keys.ShouldBe(["loom"]);
+		keys.ShouldBe(["atomicblom-loom"]);
 	}
 
 	/// <summary>
@@ -103,7 +103,7 @@ public sealed class RepositoryIdentityTests
 		var identity = RepositoryIdentity.For(worktree);
 
 		identity.Kind.ShouldBe(RepositoryKind.LinkedWorktree);
-		identity.Key.ShouldBe("loom");
+		identity.Key.ShouldBe("atomicblom-loom");
 	}
 
 	/// <summary>
@@ -122,7 +122,7 @@ public sealed class RepositoryIdentityTests
 
 		identity.Kind.ShouldBe(RepositoryKind.Submodule);
 		identity.Root.ShouldBe(submodule);
-		identity.Key.ShouldBe("vendored");
+		identity.Key.ShouldBe("other-vendored");
 		identity.Key.ShouldNotBe(RepositoryIdentity.For(super).Key);
 	}
 
@@ -245,7 +245,7 @@ public sealed class RepositoryIdentityTests
 		var there = fixture.Checkout("rose-mcp-again", Remote);
 
 		RepositoryIdentity.For(there).Key.ShouldBe(RepositoryIdentity.For(here).Key);
-		RepositoryIdentity.For(there).Key.ShouldBe("rosemcp");
+		RepositoryIdentity.For(there).Key.ShouldBe("atomicblom-rosemcp");
 	}
 
 	/// <summary>And two repositories that are genuinely different never collapse into one.</summary>
@@ -257,8 +257,26 @@ public sealed class RepositoryIdentityTests
 		var rose = RepositoryIdentity.For(fixture.Checkout("RoseMCP"));
 		var loom = RepositoryIdentity.For(fixture.Checkout("Loom"));
 
-		rose.Key.ShouldBe("rosemcp");
-		loom.Key.ShouldBe("loom");
+		rose.Key.ShouldBe("atomicblom-rosemcp");
+		loom.Key.ShouldBe("atomicblom-loom");
+	}
+
+	/// <summary>
+	/// Two repositories that share a last segment are two repositories. Keying on the name alone
+	/// files a fork and its upstream, or two owners' tools, into one store.
+	/// </summary>
+	[Test]
+	public void Two_owners_repositories_with_one_name_keep_two_keys()
+	{
+		using var fixture = GitFixture.Create();
+
+		var mine = RepositoryIdentity.For(fixture.Checkout("mine", "https://github.com/AtomicBlom/tools.git"));
+		var theirs = RepositoryIdentity.For(fixture.Checkout("theirs", "git@github.com:someone/tools.git"));
+
+		mine.Name.ShouldBe("tools");
+		theirs.Name.ShouldBe("tools");
+		mine.Key.ShouldBe("atomicblom-tools");
+		theirs.Key.ShouldBe("someone-tools");
 	}
 
 	/// <summary>
@@ -293,7 +311,7 @@ public sealed class RepositoryIdentityTests
 		var identity = RepositoryIdentity.For(fixture.Checkout("RoseMCP"));
 
 		identity.Config.ShouldBeNull();
-		identity.Key.ShouldBe("rosemcp");
+		identity.Key.ShouldBe("atomicblom-rosemcp");
 	}
 
 	/// <summary>
