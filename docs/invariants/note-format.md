@@ -12,6 +12,11 @@ Read before touching frontmatter keys, the splice, slugs, wikilinks or the index
 - **A derived value in a shared key is excluded from the source hash.** `SourceHash` drops the
   `dn-` keys *and* the `dn/` entries of `tags`, and drops `tags` entirely when nothing but machine
   topics is left. Miss any of those and writing an enrichment stales the note it just enriched.
+- **`dn-id` is server-owned and is not enrichment.** It joins the two copies of a note kept in both
+  stores. It is outside the source hash like every `dn-` key, and `IsEnriched` skips it -- counting
+  it marks every pair as indexed when the indexer never ran over it.
+- **`superseded` is authored.** It is a judgement a person reads and can reverse, so it is not
+  `dn-` prefixed, and a rewrite of the note splices around it rather than removing it.
 - **A value that YAML would read as another type is quoted.** A description of `no` coming back as
   `false` is the kind of wrong nothing downstream notices.
 - **A fence that never closes is body, not metadata.** Reading it as an unterminated block takes a

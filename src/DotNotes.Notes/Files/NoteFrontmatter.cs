@@ -142,6 +142,17 @@ public sealed class NoteFrontmatter
 				? value as string
 				: null;
 
-	/// <summary>Whether this note carries enrichment written by the indexing mode.</summary>
-	public bool IsEnriched => _values.Keys.Any(key => key.StartsWith(ServerPrefix, StringComparison.Ordinal));
+	/// <summary>
+	/// The key joining a note kept in both stores to its other copy. Server-owned, so it is outside
+	/// the source hash like every <c>dn-</c> key, and not enrichment, so it does not make a note read
+	/// as enriched.
+	/// </summary>
+	public const string IdKey = "dn-id";
+
+	/// <summary>
+	/// Whether this note carries enrichment written by the indexing mode. The pairing id is not
+	/// enrichment: counting it would mark every note kept in both stores as indexed when it never was.
+	/// </summary>
+	public bool IsEnriched => _values.Keys.Any(key =>
+		key.StartsWith(ServerPrefix, StringComparison.Ordinal) && !key.Equals(IdKey, StringComparison.Ordinal));
 }

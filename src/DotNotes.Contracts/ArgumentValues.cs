@@ -46,6 +46,20 @@ public static class ArgumentValues
 	};
 
 	/// <summary>
+	/// Which stores a note is written to: one, or both at once. Still no default. <c>both</c> is a
+	/// third answer to the question, for a fact every branch needs before the one that learned it
+	/// merges, and it publishes exactly as repository scope does.
+	/// </summary>
+	/// <exception cref="ArgumentException">The scope is not one of the three.</exception>
+	public static IReadOnlyList<NoteScope> WriteScopes(string? scope) => scope?.Trim().ToLowerInvariant() switch
+	{
+		"both" => [NoteScope.Repository, NoteScope.Machine],
+		"machine" => [NoteScope.Machine],
+		"repository" or "repo" => [NoteScope.Repository],
+		_ => throw Unknown("scope", scope, "machine", "repository", "both"),
+	};
+
+	/// <summary>
 	/// The kind of note a filter narrows to, or null for all of them. A filter that silently lost an
 	/// unrecognised name would widen the answer rather than narrowing it, which is the opposite of
 	/// what was asked.

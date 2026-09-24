@@ -85,9 +85,9 @@ public static class ToolDescriptions
 	/// instructions are loaded into every session, including the many that never write a note.
 	/// </summary>
 	public const string WriteScopeArgument =
-		"repository = committed with the code, read by everyone who clones it. machine = private, "
-			+ "never committed: local paths, machine quirks, anything naming a person or customer. "
-			+ "No default: a private note can be promoted, a pushed one cannot.";
+		"repository = committed, read by everyone who clones. machine = private: local paths, machine "
+			+ "quirks, anything naming a person or customer. both = each, for a fact every branch needs "
+			+ "now. No default: a pushed note cannot be recalled.";
 
 	public const string NoteNameArgument =
 		"A short slug naming the subject, reused to replace the note later and to link to it.";

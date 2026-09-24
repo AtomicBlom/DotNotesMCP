@@ -48,4 +48,23 @@ public sealed record NoteHeading
 
 	/// <summary>Whether the indexing mode has written enrichment for this note.</summary>
 	public bool Enriched { get; init; }
+
+	/// <summary>
+	/// What retired this note, where it has been: a reason, or the <c>[[replacement]]</c>. A
+	/// superseded note is left out of a search and still read whole by name.
+	/// </summary>
+	public string? Superseded { get; init; }
+
+	/// <summary>
+	/// The other store, where this note is kept in both and the copy there is the same note. Null
+	/// for a note kept in one.
+	/// </summary>
+	public NoteScope? Twin { get; init; }
+
+	/// <summary>
+	/// What joins a note kept in both stores to its other copy, written as <c>dn-id</c>. Not sent: a
+	/// caller acts on <see cref="Twin"/>, and an identifier it cannot use is bytes on every hit.
+	/// </summary>
+	[System.Text.Json.Serialization.JsonIgnore]
+	public string? Id { get; init; }
 }

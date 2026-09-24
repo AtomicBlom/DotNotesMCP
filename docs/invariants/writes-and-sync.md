@@ -17,6 +17,12 @@ two. Every rule here is about that.
   holder dies, so there is never a stale one; and a lock file inside a synced vault would reach the
   other machine minutes late, where it is indistinguishable from a live one. See
   [the decision](../decisions/the-store-lock-is-an-os-handle-outside-the-synced-store.md).
+- **A write to a note kept in both travels toward the machine and never away.** Writing the
+  committed copy follows into the private one, after the committed store's lock is released; writing
+  the private copy never touches the committed one. The private copy is followed only while it still
+  says what the committed copy said before -- once the person has edited it, it is theirs, and the
+  write reports the difference rather than overwriting it. See
+  [the decision](../decisions/a-note-kept-in-both-stores-is-one-note.md).
 - **Several locks are taken in one order.** An adoption holds every store it touches, sorted by folded
   path, so two that overlap cannot each hold what the other waits for.
 - **A merge plans before it moves.** Every destination is decided first; a file with the same bytes

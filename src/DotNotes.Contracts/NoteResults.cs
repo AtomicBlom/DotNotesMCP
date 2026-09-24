@@ -156,6 +156,13 @@ public sealed record NoteDeleted : NoteResult
 	public required bool Existed { get; init; }
 
 	/// <summary>
+	/// True where the committed note was marked superseded rather than deleted, because it is kept in
+	/// both stores somewhere and only the committed file can reach the private copies on other
+	/// machines. The file is still there; a search no longer finds it.
+	/// </summary>
+	public required bool Superseded { get; init; }
+
+	/// <summary>
 	/// Notes whose links now go nowhere. Reported rather than left to be found, because a retraction
 	/// that silently breaks the notes referencing it is how a store rots.
 	/// </summary>
@@ -197,8 +204,9 @@ public sealed record NoteCheckReport : NoteResult
 public sealed record NoteProblem
 {
 	/// <summary>
-	/// dangling-link, oversized, sync-conflict, duplicate-name, unreadable-frontmatter or misfiled.
-	/// A fixed set, so a caller can act on the kind rather than parsing the sentence.
+	/// dangling-link, oversized, sync-conflict, duplicate-name, unreadable-frontmatter, misfiled,
+	/// twin-differs or superseded. A fixed set, so a caller can act on the kind rather than parsing
+	/// the sentence.
 	/// </summary>
 	public required string Kind { get; init; }
 

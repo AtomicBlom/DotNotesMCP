@@ -12,7 +12,7 @@ public static class NoteWriter
 	/// the person who put it there and is spliced around rather than through.
 	/// </summary>
 	private static readonly string[] Authored =
-		["name", "description", "scope", "type", "repository", "machines", "tags", "created", "updated"];
+		["name", "description", "scope", "type", "repository", "machines", "tags", "created", "updated", "superseded"];
 
 	/// <summary>
 	/// A note's new text.
@@ -47,6 +47,10 @@ public static class NoteWriter
 			["created"] = FrontmatterSplice.Entry("created", Format(created)),
 			["updated"] = FrontmatterSplice.Entry("updated", Format(draft.Today)),
 		};
+
+		// Only when given: a note kept in one store has no id, and a rewrite that is not about the
+		// pairing leaves whatever id is there alone.
+		if (draft.Id is { Length: > 0 } id) entries[NoteFrontmatter.IdKey] = FrontmatterSplice.Entry(NoteFrontmatter.IdKey, id);
 
 		// The body is replaced wholesale and the frontmatter is not, so the splice runs over a file
 		// carrying the new prose and the old metadata.
@@ -134,4 +138,7 @@ public sealed record NoteDraft
 
 	/// <summary>Overrides the creation date, which only an import has reason to do.</summary>
 	public DateOnly? Created { get; init; }
+
+	/// <summary>The pairing id for a note kept in both stores, or null to leave the file's own alone.</summary>
+	public string? Id { get; init; }
 }

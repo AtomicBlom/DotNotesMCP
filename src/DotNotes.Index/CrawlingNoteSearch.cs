@@ -28,6 +28,7 @@ public sealed class CrawlingNoteSearch(NoteOptions options) : INoteSearch
 	{
 		var weighting = new SearchWeighting { Repository = stores.Repository.Key };
 		var terms = Tokenizer.Query(query.Text);
+		var pairs = Pairs.Of(stores, IndexFor);
 		var hits = new List<NoteHit>();
 
 		foreach (var store in stores.Reading(query.Scope))
@@ -36,11 +37,11 @@ public sealed class CrawlingNoteSearch(NoteOptions options) : INoteSearch
 
 			foreach (var (note, score) in index.Search(query.Text, weighting))
 			{
-				if (!Matches(note.Heading, query)) continue;
+				if (!Matches(note.Heading, query) || pairs.IsRetired(note.Heading)) continue;
 
 				hits.Add(new NoteHit
 				{
-					Heading = note.Heading,
+					Heading = pairs.Marked(note.Heading),
 					Extract = Snippet.Of(note.Body, terms),
 					Score = score,
 					OtherMachine = IsElsewhere(note.Heading, stores.MachineName),
@@ -48,7 +49,8 @@ public sealed class CrawlingNoteSearch(NoteOptions options) : INoteSearch
 			}
 		}
 
-		return [.. hits.OrderByDescending(hit => hit.Score)
+		return [.. Collapsed(hits)
+			.OrderByDescending(hit => hit.Score)
 			.ThenBy(hit => hit.Heading.Name, StringComparer.Ordinal)
 			.Take(Math.Clamp(query.Limit, 1, 50))];
 	}
@@ -57,6 +59,8 @@ public sealed class CrawlingNoteSearch(NoteOptions options) : INoteSearch
 	public NoteHit? Find(NoteStores stores, string name, StoreSelection scope)
 	{
 		var slug = Slug.Of(name);
+		var pairs = Pairs.Of(stores, IndexFor);
+		IndexedNote? first = null;
 
 		foreach (var store in stores.Reading(scope))
 		{
@@ -64,17 +68,40 @@ public sealed class CrawlingNoteSearch(NoteOptions options) : INoteSearch
 			{
 				if (!note.Heading.Name.Equals(slug, StringComparison.Ordinal)) continue;
 
-				return new NoteHit
+				first ??= note;
+
+				// The committed copy of a note kept in both answers, because it is the one that was
+				// reviewed; otherwise the first store in reading order does, as it always has.
+				if (note.Heading.Scope == NoteScope.Repository && pairs.Marked(note.Heading).Twin is not null)
 				{
-					Heading = note.Heading,
-					Extract = note.Body,
-					Score = 0,
-					OtherMachine = IsElsewhere(note.Heading, stores.MachineName),
-				};
+					first = note;
+				}
 			}
 		}
 
-		return null;
+		return first is null
+			? null
+			: new NoteHit
+			{
+				Heading = pairs.Marked(first.Heading),
+				Extract = first.Body,
+				Score = 0,
+				OtherMachine = IsElsewhere(first.Heading, stores.MachineName),
+			};
+	}
+
+	/// <summary>
+	/// One hit per note kept in both stores: the committed copy where it matched, carrying the better
+	/// of the two scores, because a pair listed twice is one fact taking two of ten places.
+	/// </summary>
+	private static IEnumerable<NoteHit> Collapsed(List<NoteHit> hits)
+	{
+		foreach (var group in hits.GroupBy(hit => hit.Heading.Twin is null ? hit.Heading.Path : hit.Heading.Id!))
+		{
+			var best = group.OrderBy(hit => hit.Heading.Scope == NoteScope.Repository ? 0 : 1).First();
+
+			yield return best with { Score = group.Max(hit => hit.Score) };
+		}
 	}
 
 	/// <inheritdoc />

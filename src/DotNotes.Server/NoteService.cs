@@ -31,7 +31,9 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 		};
 
 		var hits = search.Search(stores, request);
-		var searched = search.Headings(stores, selection).Count;
+
+		// A note kept in both stores is one note, so it is counted once.
+		var searched = search.Headings(stores, selection).DistinctBy(heading => heading.Id ?? heading.Path).Count();
 		var notices = Notices(stores, selection).ToList();
 
 		// An empty store and a store with nothing matching look identical in a result, and a caller
@@ -101,11 +103,13 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 		string[]? machines,
 		string? revision)
 	{
-		var target = ArgumentValues.WriteScope(scope);
+		var targets = ArgumentValues.WriteScopes(scope);
 		var stores = Stores();
-		var store = stores[target];
 
-		if (store.Unavailable is { } because) throw new McpRefusal(because);
+		foreach (var target in targets)
+		{
+			if (stores[target].Unavailable is { } because) throw new McpRefusal(because);
+		}
 
 		if (NoteWriter.TooLong(body, options.MaxBodyCharacters) is { } tooLong)
 		{
@@ -114,81 +118,120 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 
 		var slug = Slug.Of(name);
 
-		if (target == NoteScope.Machine) Unsplit(stores, slug);
-
-		var path = Path.Combine(store.Ensure(), $"{slug}.md");
-
-		using var held = StoreLock.Take(store.Path, options.StoreLockTimeout, options.LocalAppData);
-
-		var existing = NoteFile.Read(path);
-
-		Guard(existing, revision, slug);
+		if (targets.Contains(NoteScope.Machine)) Unsplit(stores, slug);
 
 		var draft = new NoteDraft
 		{
 			Name = slug,
 			Description = description,
 			Body = body,
-			Scope = target,
+			Scope = targets[0],
 			Repository = stores.Repository.Key,
 			Type = ArgumentValues.Type(type) ?? NoteType.Project,
 			Tags = tags ?? [],
 			Machines = machines ?? [],
 		};
 
-		var composed = NoteWriter.Compose(draft, existing);
-		var changed = NoteFile.Write(path, composed);
+		return targets.Count > 1 ? WriteBoth(stores, draft, revision) : WriteOne(stores, draft, revision);
+	}
 
-		Regenerate(stores, target);
+	/// <summary>A note into one store, carried into its private copy where it is the committed copy of a pair.</summary>
+	/// <exception cref="McpRefusal">It changed since the revision the caller read.</exception>
+	private NoteWritten WriteOne(NoteStores stores, NoteDraft draft, string? revision)
+	{
+		var target = draft.Scope;
+		var store = stores[target];
+		var path = Path.Combine(store.Ensure(), $"{draft.Name}.md");
+		string? existing;
+		string composed;
+		bool changed;
+
+		using (StoreLock.Take(store.Path, options.StoreLockTimeout, options.LocalAppData))
+		{
+			existing = NoteFile.Read(path);
+
+			Guard(existing, revision, draft.Name);
+
+			composed = NoteWriter.Compose(draft, existing);
+			changed = NoteFile.Write(path, composed);
+
+			Regenerate(stores, target);
+		}
+
+		// After the committed store's lock is released, so no write ever holds two locks it took one
+		// at a time.
+		var mirrored = target == NoteScope.Repository && existing is not null ? Mirror(stores, draft, existing) : null;
 
 		// The first note in a machine store is the moment it becomes worth recognising again.
 		if (target == NoteScope.Machine) Record(stores);
 
+		var heading = NoteReader.Parse(path, target, composed).Heading;
+		var paired = heading.Id is not null && TwinPath(stores, Other(target), heading.Id) is not null;
+
 		return Attribute(
 			new NoteWritten
 			{
-				Note = NoteReader.Parse(path, target, composed).Heading,
+				Note = paired ? heading with { Twin = Other(target) } : heading,
 				Created = existing is null,
 				Changed = changed,
-				Notices = Notices(stores, Selection(target)),
+				Notices = mirrored is null ? Notices(stores, Selection(target)) : [.. Notices(stores, Selection(target)), mirrored],
 			},
 			stores,
 			Selection(target));
 	}
 
-	/// <summary>Removes a note, and says what now links to nothing.</summary>
+	/// <summary>
+	/// Removes a note, and says what now links to nothing. A committed note kept in both stores is
+	/// superseded rather than deleted, and its private copy goes with it.
+	/// </summary>
 	/// <exception cref="McpRefusal">The store is unavailable.</exception>
 	public NoteDeleted Delete(string name, string scope)
 	{
-		var target = ArgumentValues.WriteScope(scope);
+		var targets = ArgumentValues.WriteScopes(scope);
 		var stores = Stores();
-		var store = stores[target];
 
-		if (store.Unavailable is { } because) throw new McpRefusal(because);
+		foreach (var target in targets)
+		{
+			if (stores[target].Unavailable is { } because) throw new McpRefusal(because);
+		}
 
 		var slug = Slug.Of(name);
 
-		if (target == NoteScope.Machine) Unsplit(stores, slug);
-
-		var path = Path.Combine(store.Path, $"{slug}.md");
-
-		using var held = StoreLock.Take(store.Path, options.StoreLockTimeout, options.LocalAppData);
+		if (targets.Contains(NoteScope.Machine)) Unsplit(stores, slug);
 
 		var dangling = Backlinks(stores, slug, StoreSelection.Both).ToArray();
-		var existed = NoteFile.Delete(path);
+		var committed = targets.Contains(NoteScope.Repository);
+		bool existed;
+		var superseded = false;
 
-		if (existed) Regenerate(stores, target);
+		if (committed)
+		{
+			(existed, superseded) = Retire(stores, slug, privateToo: targets.Count > 1);
+		}
+		else
+		{
+			using var held = StoreLock.Take(stores.Machine.Path, options.StoreLockTimeout, options.LocalAppData);
+
+			existed = NoteFile.Delete(Path.Combine(stores.Machine.Path, $"{slug}.md"));
+
+			if (existed) Regenerate(stores, NoteScope.Machine);
+		}
+
+		var selection = targets.Count > 1 ? StoreSelection.Both : Selection(targets[0]);
 
 		return Attribute(
 			new NoteDeleted
 			{
 				Name = slug,
 				Existed = existed,
-				LeftDangling = dangling,
-				Notices = Notices(stores, Selection(target)),
+				Superseded = superseded,
+
+				// A superseded note is still there, and every link to it still arrives somewhere.
+				LeftDangling = superseded ? [] : dangling,
+				Notices = Notices(stores, selection),
 			},
 			stores,
-			Selection(target));
+			selection);
 	}
 
 	/// <summary>
@@ -263,7 +306,7 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 		var headings = search.Headings(stores, selection);
 		var known = headings.Select(heading => heading.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 		var problems = new List<NoteProblem>();
-		var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		var seen = new Dictionary<string, NoteHeading>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var heading in headings)
 		{
@@ -276,6 +319,7 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 		}
 
 		problems.AddRange(Conflicts(stores, selection));
+		problems.AddRange(PairFaults(headings));
 
 		return Attribute(
 			new NoteCheckReport
@@ -322,9 +366,14 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 		var stores = NoteStores.For(directory ?? CallOrigin.Directory ?? options.DefaultRoot, options);
 
 		Record(stores);
+		Propagate(stores);
 
 		return stores;
 	}
+
+	/// <summary>The store that is not this one.</summary>
+	private static NoteScope Other(NoteScope scope) =>
+		scope == NoteScope.Repository ? NoteScope.Machine : NoteScope.Repository;
 
 	/// <summary>
 	/// Adds what this call saw to the evidence file, so the store can be recognised after the
@@ -428,7 +477,7 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 	private IEnumerable<NoteProblem> Faults(
 		Note note,
 		HashSet<string> known,
-		Dictionary<string, string> seen,
+		Dictionary<string, NoteHeading> seen,
 		NoteStores stores)
 	{
 		var heading = note.Heading;
@@ -464,15 +513,16 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 					+ "note_move puts it where it says, or rewrite the property.");
 		}
 
-		if (seen.TryGetValue(heading.Name, out var first))
+		// The two copies of a note kept in both stores share a name because they are one note.
+		if (seen.TryGetValue(heading.Name, out var first) && !(first.Id is { } id && id == heading.Id && first.Scope != heading.Scope))
 		{
 			yield return Problem(heading, "duplicate-name",
-				$"'{heading.Name}' is also claimed by {first}. A link to it reaches one of them, "
+				$"'{heading.Name}' is also claimed by {first.Path}. A link to it reaches one of them, "
 					+ "unpredictably; rename one with note_move.");
 		}
 		else
 		{
-			seen[heading.Name] = heading.Path;
+			seen.TryAdd(heading.Name, heading);
 		}
 
 		_ = stores;
@@ -569,8 +619,12 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 		// Only the store's own notes. A store waiting to be moved is read alongside this one, and
 		// listing its notes here would be an index of links into a folder beside it.
 		var headings = search.Headings(stores, selection).Where(heading => store.Holds(heading.Path)).ToArray();
-		var other = scope == NoteScope.Machine && stores.Repo.IsAvailable
-			? search.Headings(stores, StoreSelection.Repository)
+		var ids = headings.Select(heading => heading.Id).OfType<string>().ToHashSet(StringComparer.Ordinal);
+
+		// The committed notes, less the ones this store already holds a copy of: a note kept in both
+		// is listed once, as this store's own.
+		IReadOnlyList<NoteHeading>? other = scope == NoteScope.Machine && stores.Repo.IsAvailable
+			? [.. search.Headings(stores, StoreSelection.Repository).Where(heading => heading.Id is null || !ids.Contains(heading.Id))]
 			: null;
 
 		var path = Path.Combine(store.Path, NoteIndexFile.FileName);

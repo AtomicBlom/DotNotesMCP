@@ -28,7 +28,10 @@ content. Once the person has edited it, it is theirs, and the divergence is repo
 overwritten.
 
 **Which copy answers.** The committed copy, when this checkout has it, because it is the one that was
-reviewed. The machine copy otherwise. `note_check` reports a pair whose copies differ.
+reviewed. The machine copy otherwise. Either way the hit names the other store as its `twin`, and a
+search counts the pair once. `note_check` reports a pair whose copies differ as `twin-differs`. Two
+notes that merely share a name across the stores are not a pair, and `scope: both` over them refuses
+rather than making one of them the other.
 
 **Why neither copy retires the other.** A committed copy missing from this checkout means either a
 branch older than the note or a note deleted upstream, and nothing on disk tells the two apart without
@@ -38,10 +41,12 @@ one this worktree can see.
 **Retiring a committed note.** `superseded`, an authored key holding the reason or the
 `[[replacement]]`, keeps the file, drops the note from search, and makes a read say what replaced it.
 It is authored rather than `dn-` prefixed because it is a judgement a person reads and can reverse. It
-travels by git like any other edit, and a checkout that sees a superseded committed note carrying a
-`dn-id` marks the machine copy superseded too, again toward the machine. `note_delete` on a committed
-note carrying a `dn-id` supersedes it and says so, because the id means a private copy may exist on
-some machine that only the file can reach. A committed note with no `dn-id` is deleted outright.
+travels by git like any other edit, and any call from a checkout that sees a superseded committed
+note carrying a `dn-id` marks this machine's private copy superseded too, again toward the machine.
+Until it does, a search already leaves out a private copy whose committed copy it can see retired.
+`note_delete` on a committed note carrying a `dn-id` supersedes it, deletes this machine's private
+copy, and says so with `superseded: true`, because the id means a private copy may exist on some
+other machine that only the file can reach. A committed note with no `dn-id` is deleted outright.
 `note_check` lists the superseded notes, and deleting one for good is a person's call.
 
 **What it costs.** Superseded notes stay in the repository until somebody deletes them, and a machine

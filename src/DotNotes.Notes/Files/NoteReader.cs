@@ -48,6 +48,8 @@ public static class NoteReader
 				Updated = DateOf(matter.Scalar("updated")),
 				Gist = matter.Scalar("dn-gist"),
 				Enriched = matter.IsEnriched,
+				Superseded = matter.Scalar("superseded") is { Length: > 0 } superseded ? superseded : null,
+				Id = matter.Scalar(NoteFrontmatter.IdKey),
 			},
 			Body = body,
 			Content = content,

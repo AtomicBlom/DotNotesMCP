@@ -91,10 +91,11 @@ public static class NoteIndexFile
 	{
 		var summary = heading.Gist is { Length: > 0 } gist ? gist : heading.Description;
 		var machines = heading.Machines.Count > 0 ? $" _({string.Join(", ", heading.Machines)})_" : string.Empty;
+		var retired = heading.Superseded is not null ? " _(superseded)_" : string.Empty;
 
 		return summary.Length > 0
-			? $"- [[{heading.Name}]]{machines} — {summary}"
-			: $"- [[{heading.Name}]]{machines}";
+			? $"- [[{heading.Name}]]{machines}{retired} — {summary}"
+			: $"- [[{heading.Name}]]{machines}{retired}";
 	}
 
 	/// <summary>By name, because it is the only order that does not change when a note is edited.</summary>

@@ -19,6 +19,11 @@ Read before adding a tool, adding a field to a result, or changing an error path
   the inside.
 - **No tool returns a bare collection.** MCP gives structured content one JSON object, so a list has
   nowhere to go; every list is a named property of a record.
+- **A note kept in both stores is one hit.** The committed copy answers where this checkout has it,
+  the hit names the other store as `twin`, and `searched` counts the pair once. Two hits for one
+  fact is two of ten places spent on it. The pairing id itself is not sent: a caller acts on `twin`.
+- **A superseded note is left out of a search and still read by name.** The retirement is in the
+  heading, so a caller who follows a link to it learns what replaced it.
 - **A hit carries an extract, never the note.** Ten notes returned whole is most of a working
   context spent on nine the caller will discard, and that cost is what stops a search being worth
   making on a hunch.
