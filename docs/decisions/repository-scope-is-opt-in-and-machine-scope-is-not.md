@@ -1,8 +1,9 @@
 # Repository scope is opt-in; machine scope is not
 
 **Decision.** `scope: machine` works in any directory, immediately, with no configuration.
-`scope: repository` works only where `.dotnotes/dotnotes.json` exists, and refuses until it does,
-naming the file to create.
+`scope: repository` works only where the checkout already has a committed store or a
+`.dotnotes/dotnotes.json`, and refuses until it does, naming the command that creates one. How a
+store is found is [a decision of its own](the-committed-store-is-found-rather-than-configured.md).
 
 **Why.** This is what lets the server be registered once, globally, with no arguments, and behave
 sanely in every repository on the machine. Without the gate, an agent choosing repository scope on
@@ -10,10 +11,9 @@ first contact drops an untracked `.dotnotes/` into whichever work repository hap
 and the first anyone hears about it is a dirty `git status`. Committing notes into a shared
 repository changes what the team reads and reviews; that is the repository owner's decision.
 
-**Why the gate is free.** The file that opens it is the file that names the repository, which is
-step one of the naming chain and exists anyway. One committed file does both jobs, so opting in is
-not a second thing to learn -- and the refusal prints the exact contents to write, with the name
-already resolved from the remote.
+**Why the gate is free.** What opens it is what a repository with committed notes has anyway: the
+store's own generated index, or the config file that names the repository. Opting in is not a
+second thing to learn, and the refusal names the one command that does it.
 
 **Why machine scope is not gated.** It writes nothing anybody else sees, into a store the person
 configured or the default under their own profile. Gating it would mean the server does nothing at
