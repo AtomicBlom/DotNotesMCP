@@ -38,6 +38,21 @@ public sealed record NoteStores
 	/// <summary>What this machine calls itself in a note's <c>machines</c> list.</summary>
 	public required string MachineName { get; init; }
 
+	/// <summary>
+	/// Machine stores the evidence attributes to this repository under another key, read alongside
+	/// <see cref="Machine"/> and never written to. Empty unless a move is pending.
+	/// </summary>
+	public IReadOnlyList<NoteStore> Also { get; init; } = [];
+
+	/// <summary>The move waiting to be made, or null where the machine store is where the key says.</summary>
+	public PendingMove? Pending { get; init; }
+
+	/// <summary>This repository's root commits, as far as the disk says without walking history.</summary>
+	public IReadOnlyList<string> Roots { get; init; } = [];
+
+	/// <summary>What the evidence file said when this was resolved.</summary>
+	public RepositoryEvidence Evidence { get; init; } = new();
+
 	/// <summary>Both stores for the directory a call came from.</summary>
 	/// <exception cref="DotNotesConfigurationException">A configuration file is there and malformed.</exception>
 	public static NoteStores For(string directory, NoteOptions options)
@@ -45,6 +60,10 @@ public sealed record NoteStores
 		var identity = RepositoryIdentity.For(directory);
 		var settings = MachineSettingsFile.Read(options.LocalAppData);
 		var (root, source) = MachineRootFrom(options, settings);
+		var machine = MachineStore(identity, root, source);
+		var evidence = RepositoryEvidence.Read(options.LocalAppData);
+		var roots = identity.CommonDirectory is { Length: > 0 } common ? evidence.RootsOf(common) : [];
+		var (written, also, pending) = Route(machine, root, identity, evidence, roots);
 
 		return new NoteStores
 		{
@@ -52,13 +71,72 @@ public sealed record NoteStores
 			MachineRoot = root,
 			MachineRootSource = source,
 			MachineName = Configuration.MachineName.Of(settings, options),
-			Machine = MachineStore(identity, root, source),
+			Machine = written,
 			Repo = RepositoryStore(identity),
+			Also = also,
+			Pending = pending,
+			Roots = roots,
+			Evidence = evidence,
 		};
 	}
 
 	/// <summary>The store a scope names, whether or not it can be used.</summary>
 	public NoteStore this[NoteScope scope] => scope == NoteScope.Repository ? Repo : Machine;
+
+	/// <summary>Every store a read of this selection covers: the machine store, what it is read with, then the committed one.</summary>
+	public IEnumerable<NoteStore> Reading(StoreSelection selection)
+	{
+		if (selection != StoreSelection.Repository)
+		{
+			yield return Machine;
+
+			foreach (var store in Also) yield return store;
+		}
+
+		if (selection != StoreSelection.Machine) yield return Repo;
+	}
+
+	/// <summary>
+	/// Where machine notes are written and read while the evidence says this repository has notes under
+	/// another key.
+	/// <para>
+	/// The key is never overruled; the store it names is written to whenever it exists. The one
+	/// exception is a key with no store yet and exactly one unambiguous candidate, which is written to
+	/// instead so that the pending move stays a rename rather than becoming a merge. Every other
+	/// candidate is read and not written. Nothing here moves anything: several worktrees of one
+	/// repository are live at once, and the evidence can be wrong in ways only a person can see. See
+	/// <c>docs/decisions/a-renamed-repository-keeps-its-notes-until-the-move-is-made.md</c>.
+	/// </para>
+	/// </summary>
+	private static (NoteStore Machine, IReadOnlyList<NoteStore> Also, PendingMove? Pending) Route(
+		NoteStore machine,
+		string root,
+		RepositoryIdentity identity,
+		RepositoryEvidence evidence,
+		IReadOnlyList<string> roots)
+	{
+		var outside = identity.Kind == RepositoryKind.NoRepository;
+
+		if (!machine.IsAvailable || outside) return (machine, [], null);
+
+		var candidates = evidence.CandidatesFor(machine.Path, root, identity, roots);
+
+		if (candidates.Count == 0) return (machine, [], null);
+
+		var redirect = !Directory.Exists(machine.Path) && candidates is [{ Unambiguous: true }];
+
+		if (redirect)
+		{
+			var written = NoteStore.Available(NoteScope.Machine, candidates[0].Path);
+
+			return (written, [], new PendingMove { Resolved = machine.Path, Candidates = candidates, Redirected = true });
+		}
+
+		return (
+			machine,
+			[.. candidates.Select(candidate => NoteStore.Available(NoteScope.Machine, candidate.Path))],
+			new PendingMove { Resolved = machine.Path, Candidates = candidates, Redirected = false });
+	}
 
 	/// <summary>
 	/// The machine store's root, and which layer supplied it. Precedence is argument, environment,

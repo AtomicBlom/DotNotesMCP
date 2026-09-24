@@ -113,6 +113,9 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 		}
 
 		var slug = Slug.Of(name);
+
+		if (target == NoteScope.Machine) Unsplit(stores, slug);
+
 		var path = Path.Combine(store.Ensure(), $"{slug}.md");
 
 		using var held = StoreLock.Take(store.Path, options.StoreLockTimeout, options.LocalAppData);
@@ -138,6 +141,9 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 
 		Regenerate(stores, target);
 
+		// The first note in a machine store is the moment it becomes worth recognising again.
+		if (target == NoteScope.Machine) Record(stores);
+
 		return Attribute(
 			new NoteWritten
 			{
@@ -161,6 +167,9 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 		if (store.Unavailable is { } because) throw new McpRefusal(because);
 
 		var slug = Slug.Of(name);
+
+		if (target == NoteScope.Machine) Unsplit(stores, slug);
+
 		var path = Path.Combine(store.Path, $"{slug}.md");
 
 		using var held = StoreLock.Take(store.Path, options.StoreLockTimeout, options.LocalAppData);
@@ -298,6 +307,7 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 				Machine = stores.MachineName,
 				MachineStore = State(stores, NoteScope.Machine, StoreSelection.Machine),
 				RepositoryStore = State(stores, NoteScope.Repository, StoreSelection.Repository),
+				Notices = Notices(stores, StoreSelection.Both),
 			},
 			stores,
 			StoreSelection.Both);
@@ -307,8 +317,61 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 	/// The stores for this call: the directory a client named, else the one the process was started
 	/// in. Resolved per call rather than once, because one session moves between repositories.
 	/// </summary>
-	private NoteStores Stores(string? directory = null) =>
-		NoteStores.For(directory ?? CallOrigin.Directory ?? options.DefaultRoot, options);
+	private NoteStores Stores(string? directory = null)
+	{
+		var stores = NoteStores.For(directory ?? CallOrigin.Directory ?? options.DefaultRoot, options);
+
+		Record(stores);
+
+		return stores;
+	}
+
+	/// <summary>
+	/// Adds what this call saw to the evidence file, so the store can be recognised after the
+	/// repository's key changes. Only for a machine store that exists: an empty key has nothing to
+	/// be found again. Checked against the copy already read before the file is locked, so the
+	/// ordinary call, which saw nothing new, costs no lock and no write.
+	/// </summary>
+	private void Record(NoteStores stores)
+	{
+		var identity = stores.Repository;
+		var store = stores.Machine;
+
+		if (identity.Kind == RepositoryKind.NoRepository || !store.IsAvailable) return;
+		if (stores.Evidence.Unreadable is not null || !Directory.Exists(store.Path)) return;
+
+		if (!stores.Evidence.Saw(store.Path, identity, stores.Roots)) return;
+
+		RepositoryEvidence.Update(
+			evidence => evidence.Saw(store.Path, identity, stores.Roots),
+			options.StoreLockTimeout,
+			options.LocalAppData);
+	}
+
+	/// <summary>
+	/// Refuses a machine write whose name is already a note in a store waiting to be moved. Writing it
+	/// here as well would leave one note in two places with nothing to say which is current, and the
+	/// move that follows would have to refuse on it.
+	/// </summary>
+	/// <exception cref="McpRefusal">The name is taken in a store read alongside this one.</exception>
+	private static void Unsplit(NoteStores stores, string slug)
+	{
+		foreach (var other in stores.Also)
+		{
+			if (!File.Exists(Path.Combine(other.Path, $"{slug}.md"))) continue;
+
+			throw new McpRefusal(
+				$"'{slug}' is in {other.Path}, which holds this repository's notes under an earlier name. "
+					+ $"Move them first with {AdoptCommand(stores)}, so the note is not split in two.");
+		}
+	}
+
+	/// <summary>
+	/// The command that makes a pending move, as a person or an agent would type it. The process's
+	/// own path, because the notice is useless if it names a program the reader cannot find.
+	/// </summary>
+	private static string AdoptCommand(NoteStores stores) =>
+		$"\"{Environment.ProcessPath ?? "DotNotes.Server"}\" --adopt \"{stores.Repository.Origin}\"";
 
 	/// <summary>
 	/// Fills in which repository answered, at the one point every result passes through.
@@ -505,7 +568,10 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 		if (!store.IsAvailable) return;
 
 		var selection = Selection(scope);
-		var headings = search.Headings(stores, selection);
+
+		// Only the store's own notes. A store waiting to be moved is read alongside this one, and
+		// listing its notes here would be an index of links into a folder beside it.
+		var headings = search.Headings(stores, selection).Where(heading => store.Holds(heading.Path)).ToArray();
 		var other = scope == NoteScope.Machine && stores.Repo.IsAvailable
 			? search.Headings(stores, StoreSelection.Repository)
 			: null;
@@ -565,7 +631,40 @@ public sealed partial class NoteService(NoteOptions options, INoteSearch search)
 			notices.Add(repository);
 		}
 
+		if (selection != StoreSelection.Repository && stores.Evidence.Unreadable is { } evidence)
+		{
+			notices.Add(evidence);
+		}
+
+		if (selection != StoreSelection.Repository && stores.Pending is { } pending)
+		{
+			notices.Add(Pending(stores, pending));
+		}
+
 		return notices;
+	}
+
+	/// <summary>
+	/// A pending move, said the way the caller has to act on it: where the notes are, whether they are
+	/// being written there, and the one command that puts them where the key says.
+	/// </summary>
+	private static string Pending(NoteStores stores, PendingMove pending)
+	{
+		var resolved = Path.GetFileName(pending.Resolved);
+		var command = AdoptCommand(stores);
+
+		if (pending.Redirected)
+		{
+			return $"This repository now resolves to '{resolved}', but its machine notes are filed under "
+				+ $"'{Path.GetFileName(pending.Candidates[0].Path)}', where they are read and written until "
+				+ $"they are moved. {command} moves them.";
+		}
+
+		var names = string.Join(", ", pending.Candidates.Select(candidate => $"'{Path.GetFileName(candidate.Path)}'"));
+
+		return $"Machine notes for this repository are also filed under {names}: read here, never written. "
+			+ $"{command} merges them into '{resolved}'; --dismiss in place of --adopt if they belong to "
+			+ "another repository.";
 	}
 
 	/// <summary>A note's links, each said to resolve or not.</summary>

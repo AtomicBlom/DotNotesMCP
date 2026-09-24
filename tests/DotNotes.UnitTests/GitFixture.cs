@@ -99,6 +99,25 @@ public sealed class GitFixture : IDisposable
 		return bare;
 	}
 
+	/// <summary>
+	/// Gives a checkout an origin, or changes it -- the ordinary act that renames a repository which
+	/// was named by its folder.
+	/// </summary>
+	public static void SetRemote(string checkout, string remote) =>
+		Populate(Path.Combine(checkout, ".git"), remote);
+
+	/// <summary>
+	/// Writes a commit-graph listing these roots, each with one child, so the reader has to tell the
+	/// two apart. The hashes are whatever the test says they are: nothing here checks them.
+	/// </summary>
+	public static void CommitGraph(string checkout, params string[] roots) =>
+		CommitGraphFile.Write(
+			Path.Combine(checkout, ".git", "objects", "info", "commit-graph"),
+			roots);
+
+	/// <summary>A distinct forty-character commit id, from a readable seed.</summary>
+	public static string Commit(int seed) => seed.ToString("x8").PadLeft(40, 'a');
+
 	/// <summary>A directory with no git anywhere above it.</summary>
 	public string Plain(string name) => Directory.CreateDirectory(Path.Combine(Root, name)).FullName;
 

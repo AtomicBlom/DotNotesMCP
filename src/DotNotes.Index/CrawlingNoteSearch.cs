@@ -30,9 +30,9 @@ public sealed class CrawlingNoteSearch(NoteOptions options) : INoteSearch
 		var terms = Tokenizer.Query(query.Text);
 		var hits = new List<NoteHit>();
 
-		foreach (var scope in Scopes(query.Scope))
+		foreach (var store in stores.Reading(query.Scope))
 		{
-			var index = IndexFor(stores, scope);
+			var index = IndexFor(store);
 
 			foreach (var (note, score) in index.Search(query.Text, weighting))
 			{
@@ -58,9 +58,9 @@ public sealed class CrawlingNoteSearch(NoteOptions options) : INoteSearch
 	{
 		var slug = Slug.Of(name);
 
-		foreach (var store in Scopes(scope))
+		foreach (var store in stores.Reading(scope))
 		{
-			foreach (var note in IndexFor(stores, store).Notes)
+			foreach (var note in IndexFor(store).Notes)
 			{
 				if (!note.Heading.Name.Equals(slug, StringComparison.Ordinal)) continue;
 
@@ -79,18 +79,10 @@ public sealed class CrawlingNoteSearch(NoteOptions options) : INoteSearch
 
 	/// <inheritdoc />
 	public IReadOnlyList<NoteHeading> Headings(NoteStores stores, StoreSelection scope) =>
-		[.. Scopes(scope)
-			.SelectMany(store => IndexFor(stores, store).Notes)
+		[.. stores.Reading(scope)
+			.SelectMany(store => IndexFor(store).Notes)
 			.Select(note => note.Heading)
 			.OrderBy(heading => heading.Name, StringComparer.Ordinal)];
-
-	/// <summary>The stores a selection covers, skipping any that cannot be read.</summary>
-	private static IEnumerable<NoteScope> Scopes(StoreSelection selection) => selection switch
-	{
-		StoreSelection.Machine => [NoteScope.Machine],
-		StoreSelection.Repository => [NoteScope.Repository],
-		_ => [NoteScope.Machine, NoteScope.Repository],
-	};
 
 	/// <summary>Whether a note says it is about machines and this is not one of them.</summary>
 	private static bool IsElsewhere(NoteHeading heading, string machine) =>
@@ -107,10 +99,8 @@ public sealed class CrawlingNoteSearch(NoteOptions options) : INoteSearch
 	}
 
 	/// <summary>The index for one store, rebuilt when the store has changed under it.</summary>
-	private SearchIndex IndexFor(NoteStores stores, NoteScope scope)
+	private SearchIndex IndexFor(NoteStore store)
 	{
-		var store = stores[scope];
-
 		if (!store.IsAvailable || !Directory.Exists(store.Path)) return SearchIndex.Build([]);
 
 		var stamp = Stamp.Of(store.Path);
@@ -122,7 +112,7 @@ public sealed class CrawlingNoteSearch(NoteOptions options) : INoteSearch
 				return cached.Index;
 			}
 
-			var index = SearchIndex.Build(Crawl(store.Path, scope));
+			var index = SearchIndex.Build(Crawl(store.Path, store.Scope));
 
 			_cached[store.Path] = (stamp, index);
 

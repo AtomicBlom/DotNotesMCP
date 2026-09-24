@@ -17,6 +17,11 @@ two. Every rule here is about that.
   holder dies, so there is never a stale one; and a lock file inside a synced vault would reach the
   other machine minutes late, where it is indistinguishable from a live one. See
   [the decision](../decisions/the-store-lock-is-an-os-handle-outside-the-synced-store.md).
+- **Several locks are taken in one order.** An adoption holds every store it touches, sorted by folded
+  path, so two that overlap cannot each hold what the other waits for.
+- **A merge plans before it moves.** Every destination is decided first; a file with the same bytes
+  already there is a copy and is dropped, and one with different bytes refuses the whole merge before
+  a single file moves. Half a merge is notes in two places with nothing to say which was meant.
 - **Cross-machine safety never depends on timing.** It is whole-file writes, content hashes, and
   `note_check` reporting the conflict copies a sync service leaves behind.
 - **A hash is taken over content with line endings normalised.** The same note is CRLF in a checkout

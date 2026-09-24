@@ -265,12 +265,16 @@ public sealed class IndexRun
 		return Status(stores, scope, includeDrift: false);
 	}
 
-	/// <summary>The notes in a store, as the index sees them.</summary>
+	/// <summary>
+	/// The notes in a store, as the index sees them. Only the store's own: a store waiting to be moved
+	/// is read beside it but is not under its lock, so nothing here writes into it.
+	/// </summary>
 	private IReadOnlyList<IndexedNote> Notes(NoteStores stores, NoteScope scope) =>
 		[.. SearchIndex.Build(
 			_search.Headings(stores, scope == NoteScope.Repository
 					? StoreSelection.Repository
 					: StoreSelection.Machine)
+				.Where(heading => stores[scope].Holds(heading.Path))
 				.Select(heading => NoteFile.Read(heading.Path) is { } content
 					? IndexedNote.Of(NoteReader.Parse(heading.Path, scope, content))
 					: null)

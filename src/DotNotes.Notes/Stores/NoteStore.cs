@@ -28,6 +28,13 @@ public sealed record NoteStore
 	/// <summary>Whether a note can be written here.</summary>
 	public bool IsAvailable => Unavailable is null;
 
+	/// <summary>Whether a file is inside this store, rather than in another one read alongside it.</summary>
+	public bool Holds(string file) =>
+		Path.Length > 0
+			&& file.StartsWith(Path + System.IO.Path.DirectorySeparatorChar, Repositories.PathCasing.IsInsensitive
+				? StringComparison.OrdinalIgnoreCase
+				: StringComparison.Ordinal);
+
 	/// <summary>A store that is ready, creating its directory if this is the first note.</summary>
 	public static NoteStore Available(NoteScope scope, string path) => new() { Scope = scope, Path = path };
 

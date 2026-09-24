@@ -40,3 +40,13 @@ repository nobody has written notes for.
   and the person has no reason left to doubt they did it right. Measured at 190 microseconds inside
   a repository and 291 outside one, against a crawl of tens of milliseconds: the cache bought 0.3 ms
   a request and sold the only two answers it reports. Both cases are pinned by a test.
+- **The evidence file is consulted, never trusted.** `RepositoryEvidence` remembers what each machine
+  store was seen as, so a store is found again after the key moves. It never answers the key or the
+  opt-in, and every store it names is checked on disk before it is used; deleting it loses the
+  ability to notice a move and nothing else. A remembered answer that could go stale is exactly the
+  cache the rule above removed. See
+  [the decision](../decisions/a-renamed-repository-keeps-its-notes-until-the-move-is-made.md).
+- **Root commits are a set, and are evidence rather than a key.** A monorepo has one per repository
+  merged into it, a fork shares its upstream's, and a repository has none before its first commit.
+  Matching is by intersection; treating them as one value misses the monorepo, and keying on them
+  changes the key at the first commit.

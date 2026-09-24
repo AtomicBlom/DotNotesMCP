@@ -36,6 +36,15 @@ Read before touching `NoteStores`, a scope, the machine-store path, or the confi
 - **Resolving never creates a directory.** Asking where the stores are is what a diagnostic does,
   and a diagnostic that leaves a folder behind in every repository it is pointed at is a worse
   diagnostic.
+- **A pending move never moves anything by itself.** While the evidence attributes another machine
+  store to this repository, that store is read with this one and every answer says so. Writes go to
+  the key's store, or -- only where the key has no store yet and there is exactly one candidate that
+  nothing else can own -- to that candidate, so the move stays a rename. Several worktrees are live
+  at once and the evidence can be wrong; a store is moved only by `--adopt`. See
+  [the decision](../decisions/a-renamed-repository-keeps-its-notes-until-the-move-is-made.md).
+- **A store read alongside is never written or enriched.** It is not under the lock the write takes,
+  and an index regenerated over it would list links into a folder beside the store. Anything that
+  writes filters to `NoteStore.Holds`.
 - **Every `DOTNOTES_*` variable is read in exactly one place, through `NoteOptions.Environment`.**
   The process environment is shared by everything in the process, including a parallel test suite.
   See [the decision](../decisions/the-environment-is-read-through-a-seam.md).

@@ -27,6 +27,18 @@ public sealed record ServerOptions
 	public string? Explain { get; init; }
 
 	/// <summary>
+	/// A repository whose pending move to make, then exit. The explicit step a notice names: a store
+	/// is never moved except by somebody running this.
+	/// </summary>
+	public string? Adopt { get; init; }
+
+	/// <summary>A repository whose pending move to dismiss, then exit: its candidates are another repository's.</summary>
+	public string? Dismiss { get; init; }
+
+	/// <summary>One candidate's folder name, narrowing <see cref="Adopt"/> or <see cref="Dismiss"/> to it.</summary>
+	public string? Only { get; init; }
+
+	/// <summary>
 	/// Which surface to serve. The two are never served together: the indexing tools work, and that
 	/// is the problem -- a several-hundred-iteration loop that rewrites files, in front of a session
 	/// doing something else, costs a burnt session rather than an error.
@@ -39,7 +51,7 @@ public sealed record ServerOptions
 	/// <summary>The usage line, printed to stderr beside whatever was wrong with the arguments.</summary>
 	public const string Usage =
 		"usage: DotNotes.Server [--mode serve|index] [--scope machine|repository] [--root <dir>] "
-			+ "[--store <path>] [--explain <dir>]";
+			+ "[--store <path>] [--explain <dir>] [--adopt <dir> | --dismiss <dir>] [--only <folder>]";
 
 	/// <exception cref="ArgumentException">An argument is unrecognised, or its value is missing.</exception>
 	public static ServerOptions Parse(string[] args)
@@ -49,6 +61,9 @@ public sealed record ServerOptions
 		NoteScope? scope = null;
 		string? store = null;
 		string? explain = null;
+		string? adopt = null;
+		string? dismiss = null;
+		string? only = null;
 
 		for (var i = 0; i < args.Length; i++)
 		{
@@ -85,6 +100,21 @@ public sealed record ServerOptions
 					explain = args[++i];
 					break;
 
+				case "--adopt":
+					if (i + 1 >= args.Length) throw new ArgumentException("--adopt requires a directory.");
+					adopt = args[++i];
+					break;
+
+				case "--dismiss":
+					if (i + 1 >= args.Length) throw new ArgumentException("--dismiss requires a directory.");
+					dismiss = args[++i];
+					break;
+
+				case "--only":
+					if (i + 1 >= args.Length) throw new ArgumentException("--only requires a store's folder name.");
+					only = args[++i];
+					break;
+
 				default:
 					throw new ArgumentException($"Unrecognised argument '{args[i]}'.");
 			}
@@ -97,6 +127,9 @@ public sealed record ServerOptions
 			Scope = scope,
 			Store = store,
 			Explain = explain,
+			Adopt = adopt,
+			Dismiss = dismiss,
+			Only = only,
 		};
 
 		options.Validate();
@@ -116,6 +149,16 @@ public sealed record ServerOptions
 	/// <exception cref="ArgumentException">An indexing run names no store.</exception>
 	private void Validate()
 	{
+		if (Adopt is not null && Dismiss is not null)
+		{
+			throw new ArgumentException("--adopt and --dismiss are opposite answers to one question. Give one.");
+		}
+
+		if (Only is not null && Adopt is null && Dismiss is null)
+		{
+			throw new ArgumentException("--only narrows --adopt or --dismiss, and neither was given.");
+		}
+
 		if (Mode != ServerMode.Index || Scope is not null) return;
 
 		throw new ArgumentException(
